@@ -6,7 +6,7 @@ Usage:
     python build_pyinstaller_macos.py
 """
 
-import PyInstaller.__main__
+import subprocess
 import sys
 from pathlib import Path
 
@@ -20,26 +20,25 @@ def main():
     
     project_dir = Path(__file__).parent
     main_script = str(project_dir / "main.py")
-    icon_path = str(project_dir / "public" / "app icon_002.png")
     
-    # PyInstaller arguments
-    args = [
+    # PyInstaller command
+    cmd = [
+        sys.executable, "-m", "PyInstaller",
         main_script,
         
         # === Output Configuration ===
-        "--onedir",                           # Directory bundle (required for .app)
-        "--windowed",                         # GUI app, no console
+        "--onedir",
+        "--windowed",
         "--name=Canto-beats",
-        f"--icon={icon_path}",
         "--distpath=dist",
         "--workpath=build",
         "--specpath=.",
         
-        # === Add Data Files ===
-        "--add-data=src:src",                 # macOS uses : separator
+        # === Add Data Files (macOS uses :) ===
+        "--add-data=src:src",
         "--add-data=public:public",
         
-        # === Hidden Imports (explicit) ===
+        # === Hidden Imports ===
         "--hidden-import=PySide6.QtCore",
         "--hidden-import=PySide6.QtGui",
         "--hidden-import=PySide6.QtWidgets",
@@ -47,6 +46,8 @@ def main():
         "--hidden-import=faster_whisper",
         "--hidden-import=transformers",
         "--hidden-import=cryptography",
+        "--hidden-import=sentencepiece",
+        "--hidden-import=accelerate",
         
         # === macOS Specific ===
         "--osx-bundle-identifier=com.cantobeats.app",
@@ -58,25 +59,26 @@ def main():
         # Exclude unnecessary modules
         "--exclude-module=tkinter",
         "--exclude-module=matplotlib",
-        "--exclude-module=PIL.ImageTk",
     ]
     
-    # Remove empty strings
-    args = [arg for arg in args if arg]
-    
-    print("\nStarting PyInstaller build...")
-    print("This should take 10-20 minutes.\n")
-    print("-" * 60)
+    print("\nBuild command:")
+    print(" ".join(cmd))
+    print("\n" + "-" * 60)
+    print("Starting PyInstaller build (10-20 minutes)...")
+    print("-" * 60 + "\n")
     
     try:
-        PyInstaller.__main__.run(args)
+        result = subprocess.run(cmd, check=True)
         
         print("\n" + "=" * 60)
         print("BUILD SUCCESSFUL!")
-        print(f"Output: dist/Canto-beats.app")
+        print("Output: dist/Canto-beats.app")
         print("=" * 60)
         return 0
         
+    except subprocess.CalledProcessError as e:
+        print(f"\nBUILD FAILED with exit code {e.returncode}")
+        return e.returncode
     except Exception as e:
         print(f"\nBUILD FAILED: {e}")
         return 1
