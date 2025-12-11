@@ -52,7 +52,8 @@ jobs:
       
       - name: Install Python dependencies
         run: |
-          pip install -r requirements.txt
+          grep -v "llama-cpp-python" requirements.txt > requirements-macos.txt
+          pip install -r requirements-macos.txt
           pip install nuitka imageio ordered-set
       
       - name: Build with Nuitka
