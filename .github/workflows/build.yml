@@ -23,10 +23,10 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install nuitka imageio ordered-set
+          pip install pyinstaller
       
-      - name: Build with Nuitka
-        run: python build_nuitka.py
+      - name: Build with PyInstaller
+        run: python build_pyinstaller.py
       
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -54,10 +54,10 @@ jobs:
         run: |
           grep -v "llama-cpp-python" requirements.txt > requirements-macos.txt
           pip install -r requirements-macos.txt
-          pip install nuitka imageio ordered-set
+          pip install pyinstaller
       
-      - name: Build with Nuitka
-        run: python build_nuitka_macos.py
+      - name: Build with PyInstaller
+        run: python build_pyinstaller_macos.py
       
       - name: Create DMG (optional)
         run: |
