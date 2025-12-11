@@ -53,7 +53,6 @@ def get_nuitka_command():
         # === Code Protection ===
         "--include-data-dir=src=src",
         "--include-data-dir=public=public",
-        "--include-data-dir=models=models",
         
         # === PySide6 Plugin ===
         "--enable-plugin=pyside6",
