@@ -1,0 +1,27 @@
+INFO: Loaded 288 Cantonese mappings and 20 profanity mappings
+DEBUG: Loaded resources. Canto: 288, Prof: 20
+INFO: Loaded 288 Cantonese mappings and 20 profanity mappings
+DEBUG: Loaded resources. Canto: 288, Prof: 20
+INFO: Loaded 288 Cantonese mappings and 20 profanity mappings
+DEBUG: Loaded resources. Canto: 288, Prof: 20
+INFO: Loaded 288 Cantonese mappings and 20 profanity mappings
+DEBUG: Loaded resources. Canto: 288, Prof: 20
+INFO: Loaded 288 Cantonese mappings and 20 profanity mappings
+F....
+======================================================================
+FAIL: test_cantonese_conversion (__main__.TestStyleProcessor)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\test_style_processor.py", line 22, in test_cantonese_conversion
+    self.assertEqual(res, "他在哪裡看漂亮女") # Note: '女' might not be mapped, '靚'->'漂亮'
+AssertionError: '他在哪裡看漂亮女兒' != '他在哪裡看漂亮女'
+- 他在哪裡看漂亮女兒
+?         -
++ 他在哪裡看漂亮女
+
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.005s
+
+FAILED (failures=1)
+DEBUG: Loaded resources. Canto: 288, Prof: 20

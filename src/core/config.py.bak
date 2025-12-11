@@ -1,0 +1,129 @@
+"""
+Configuration management for Canto-beats
+"""
+
+import os
+import json
+from pathlib import Path
+from typing import Dict, Any
+from dataclasses import dataclass, asdict
+
+
+@dataclass
+class AppConfig:
+    """Application configuration"""
+    
+    # Version info
+    version: str = "1.0.0"
+    build_type: str = "lite"  # "lite" or "flagship"
+    
+    # Paths
+    app_dir: str = ""
+    models_dir: str = ""
+    data_dir: str = ""
+    cache_dir: str = ""
+    
+    # AI Models
+    whisper_model: str = "large-v3"  # Best accuracy model
+    use_cantonese_model: bool = True  # Use Cantonese-finetuned models from HuggingFace
+    cantonese_model_flagship: str = "khleeloo/whisper-large-v3-cantonese"
+    cantonese_model_lite: str = "alvanlii/whisper-small-cantonese"
+    vad_model: str = "silero_vad"
+    device: str = "cuda"  # Force GPU usage as requested ("auto", "cuda", "cpu")
+    
+    # VAD Settings
+    vad_threshold: float = 0.5  # Voice detection threshold (0.0-1.0)
+    min_silence_duration_ms: int = 1000  # Minimum silence to split sentences (increased to reduce fragmentation)
+    min_speech_duration_ms: int = 500  # Minimum speech duration (increased to filter noise)
+    vad_speech_pad_ms: int = 400  # Padding around speech segments to bridge gaps
+    
+    # Transcription Settings
+    default_language: str = "yue"  # "yue" for Cantonese (ISO 639-3 code, supported by faster-whisper)
+    enable_word_timestamps: bool = True
+    beam_size: int = 20  # Maxed out for 99.9% accuracy (slower but most precise)
+    
+    # Processing settings
+    confidence_threshold: float = 0.7
+    max_video_size_gb: int = 50
+    chunk_audio: bool = True  # Chunk long audio for processing
+    max_audio_chunk_s: float = 30.0  # Maximum audio chunk length
+    
+    # UI settings
+    theme: str = "dark"  # "dark" or "light"
+    language: str = "zh_HK"
+    
+    # Performance
+    use_gpu: bool = True
+    num_threads: int = 4
+    compute_type: str = "auto"  # "auto", "float16", "int8", "int8_float16" for faster-whisper
+
+
+class Config:
+    """Configuration manager"""
+    
+    def __init__(self):
+        self.app_config = AppConfig()
+        self._setup_paths()
+        self._load_config()
+    
+    def _setup_paths(self):
+        """Setup application directories"""
+        # Get user's app data directory
+        if os.name == 'nt':  # Windows
+            app_data = Path(os.environ.get('APPDATA', ''))
+        else:  # macOS/Linux
+            app_data = Path.home() / '.config'
+        
+        # Create Canto-beats directories
+        self.app_dir = app_data / 'Canto-beats'
+        self.app_dir.mkdir(parents=True, exist_ok=True)
+        
+        self.models_dir = self.app_dir / 'models'
+        self.models_dir.mkdir(exist_ok=True)
+        
+        self.data_dir = self.app_dir / 'data'
+        self.data_dir.mkdir(exist_ok=True)
+        
+        self.cache_dir = self.app_dir / 'cache'
+        self.cache_dir.mkdir(exist_ok=True)
+        
+        # Update config
+        self.app_config.app_dir = str(self.app_dir)
+        self.app_config.models_dir = str(self.models_dir)
+        self.app_config.data_dir = str(self.data_dir)
+        self.app_config.cache_dir = str(self.cache_dir)
+    
+    def _load_config(self):
+        """Load configuration from file"""
+        config_file = self.app_dir / 'config.json'
+        
+        if config_file.exists():
+            try:
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    # Update config with saved values
+                    for key, value in data.items():
+                        if hasattr(self.app_config, key):
+                            setattr(self.app_config, key, value)
+            except Exception as e:
+                print(f"Error loading config: {e}")
+    
+    def save_config(self):
+        """Save configuration to file"""
+        config_file = self.app_dir / 'config.json'
+        
+        try:
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(asdict(self.app_config), f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving config: {e}")
+    
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get configuration value"""
+        return getattr(self.app_config, key, default)
+    
+    def set(self, key: str, value: Any):
+        """Set configuration value"""
+        if hasattr(self.app_config, key):
+            setattr(self.app_config, key, value)
+            self.save_config()

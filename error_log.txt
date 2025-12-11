@@ -1,0 +1,31 @@
+============================================================
+Testing full transcription pipeline
+============================================================
+
+1. Extracting audio...
+
+2. Loading Whisper model...
+INFO: Using CUDA device: NVIDIA GeForce RTX 3070 Ti
+INFO: Model manager initialized on device: cuda
+INFO: Whisper ASR initialized with model: alvanlii/whisper-small-cantonese
+INFO: Loading Whisper model: alvanlii/whisper-small-cantonese
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+Device set to use cuda
+INFO: Whisper model loaded successfully on cuda
+INFO: Using dtype: torch.float16
+
+============================================================
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\debug_transcription.py", line 37, in test_transcription
+    print("   \u2705 Whisper loaded")
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2705' in position 3: illegal multibyte sequence
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\debug_transcription.py", line 85, in <module>
+    test_transcription()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\debug_transcription.py", line 77, in test_transcription
+    print("\u274c ERROR OCCURRED")
+UnicodeEncodeError: 'gbk' codec can't encode character '\u274c' in position 0: illegal multibyte sequence

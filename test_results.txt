@@ -1,0 +1,46 @@
+
+======================================================================
+Style Control Panel - All Features Test
+======================================================================
+INFO: Loaded resources: Canto=288, Prof=20, Eng=22
+
+[Test 1] Cantonese Style Conversion
+  Spoken:  Kei5 hai2 bin1dou6 tai2 leng3 neoi2
+  Written: Kei5 hai2 bin1dou6 tai2 leng3 neoi2
+
+[Test 2] English Handling
+  Keep:      Hello World
+  Translate: 你好 世界
+
+[Test 3] Number Format
+  Arabic:  123
+  Chinese: 一二三
+  Back:    123
+
+[Test 4] Profanity Filter
+  Original: 柒
+  Masked:   ★
+
+[Test 5] Long Line Splitting
+  Original: 1 segment(s)
+  Split:    2 segment(s)
+
+[Test 6] Combined Processing
+INFO: Processing 1 segments with options: {'style': 'written', 'english': 'translate', 'numbers': 'chinese', 'profanity': 'keep', 'split_long': False}
+INFO: Processing complete: 1 segments
+  Input:  123 Hello
+  Output: 一二三 你好
+
+======================================================================
+Test Results:
+======================================================================
+  Cantonese   : FAIL
+  English     : PASS
+  Numbers     : PASS
+  Profanity   : PASS
+  Split       : PASS
+  Combined    : PASS
+
+Total: 5/6 tests passed
+======================================================================
+

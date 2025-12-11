@@ -1,0 +1,203 @@
+
+============================================================
+Crash at: 2025-12-09 20:30:42.037088
+Type: AttributeError
+Value: 'MainWindow' object has no attribute '_show_about_dialog'
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 144, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 134, in main
+    window = MainWindow(config)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 49, in __init__
+    self._init_ui()
+    ~~~~~~~~~~~~~^^
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 119, in _init_ui
+    self.custom_menubar = self._create_custom_menubar()
+                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 192, in _create_custom_menubar
+    self._setup_help_menu(self.help_menu)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 316, in _setup_help_menu
+    about_action.triggered.connect(self._show_about_dialog)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'MainWindow' object has no attribute '_show_about_dialog'. Did you mean: '_show_search_dialog'?
+
+============================================================
+Crash at: 2025-12-09 20:42:54.966369
+Type: AttributeError
+Value: 'MainWindow' object has no attribute '_setup_file_menu'
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 144, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 134, in main
+    window = MainWindow(config)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 49, in __init__
+    self._init_ui()
+    ~~~~~~~~~~~~~^^
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 126, in _init_ui
+    header = self._create_header()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 271, in _create_header
+    self._setup_file_menu(self.file_menu)
+    ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'MainWindow' object has no attribute '_setup_file_menu'. Did you mean: '_setup_help_menu'?
+
+============================================================
+Crash at: 2025-12-09 20:45:45.201508
+Type: AttributeError
+Value: 'MainWindow' object has no attribute 'notification_badge'
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 144, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 134, in main
+    window = MainWindow(config)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 56, in __init__
+    self._update_notification_badge(self.notification_manager.unread_count)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 1317, in _update_notification_badge
+    self.notification_badge.hide()
+    ^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'MainWindow' object has no attribute 'notification_badge'. Did you mean: 'notification_manager'?
+
+============================================================
+Crash at: 2025-12-09 21:16:49.142097
+Type: RuntimeError
+Value: Internal C++ object (PySide6.QtWidgets.QPushButton) already deleted.
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 89, in _toggle_maximize
+    self.max_btn.setText("❐")
+    ~~~~~~~~~~~~~~~~~~~~^^^^^
+RuntimeError: Internal C++ object (PySide6.QtWidgets.QPushButton) already deleted.
+
+============================================================
+Crash at: 2025-12-09 21:16:50.142396
+Type: RuntimeError
+Value: Internal C++ object (PySide6.QtWidgets.QPushButton) already deleted.
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 85, in _toggle_maximize
+    self.max_btn.setText("□")
+    ~~~~~~~~~~~~~~~~~~~~^^^^^
+RuntimeError: Internal C++ object (PySide6.QtWidgets.QPushButton) already deleted.
+
+============================================================
+Crash at: 2025-12-09 22:26:55.546528
+Type: SyntaxError
+Value: invalid syntax (main_window.py, line 917)
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 49, in <module>
+    from ui.main_window import MainWindow
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 917
+    finally:
+    ^^^^^^^
+SyntaxError: invalid syntax
+
+============================================================
+Crash at: 2025-12-09 22:41:24.554352
+Type: ImportError
+Value: cannot import name 'DownloadDialog' from 'ui.download_dialog' (C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\download_dialog.py)
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 386, in _test_download_dialog
+    from ui.download_dialog import DownloadDialog
+ImportError: cannot import name 'DownloadDialog' from 'ui.download_dialog' (C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\download_dialog.py). Did you mean: 'download_dialog'?
+
+============================================================
+Crash at: 2025-12-09 22:41:28.520414
+Type: ImportError
+Value: cannot import name 'DownloadDialog' from 'ui.download_dialog' (C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\download_dialog.py)
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 386, in _test_download_dialog
+    from ui.download_dialog import DownloadDialog
+ImportError: cannot import name 'DownloadDialog' from 'ui.download_dialog' (C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\download_dialog.py). Did you mean: 'download_dialog'?
+
+============================================================
+Crash at: 2025-12-10 03:12:41.245415
+Type: TypeError
+Value: TranscribeWorkerV2.__init__() got an unexpected keyword argument 'ai_correction_enabled'
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 930, in _start_transcription
+    self.worker = TranscribeWorkerV2(
+                  ~~~~~~~~~~~~~~~~~~^
+        self.config,
+        ^^^^^^^^^^^^
+    ...<2 lines>...
+        ai_correction_enabled=False
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+TypeError: TranscribeWorkerV2.__init__() got an unexpected keyword argument 'ai_correction_enabled'
+
+============================================================
+Crash at: 2025-12-10 03:15:43.090517
+Type: AttributeError
+Value: 'TranscribeWorkerV2' object has no attribute 'finished'
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 937, in _start_transcription
+    self.worker.finished.connect(self._on_transcription_finished)
+    ^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'TranscribeWorkerV2' object has no attribute 'finished'
+
+============================================================
+Crash at: 2025-12-10 03:34:58.477849
+Type: KeyboardInterrupt
+Value: 
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 1694, in eventFilter
+    def eventFilter(self, obj, event):
+    
+KeyboardInterrupt
+
+============================================================
+Crash at: 2025-12-10 03:37:36.219669
+Type: ModuleNotFoundError
+Value: No module named 'PySide6'
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 47, in <module>
+    from PySide6.QtWidgets import QApplication
+ModuleNotFoundError: No module named 'PySide6'
+
+============================================================
+Crash at: 2025-12-10 21:21:25.790325
+Type: AttributeError
+Value: 'MainWindow' object has no attribute '_exit_fullscreen'
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 209, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 199, in main
+    window = MainWindow(config)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 52, in __init__
+    self._setup_shortcuts()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 838, in _setup_shortcuts
+    self.esc_shortcut.activated.connect(self._exit_fullscreen)
+                                        ^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'MainWindow' object has no attribute '_exit_fullscreen'
+
+============================================================
+Crash at: 2025-12-10 21:24:58.464223
+Type: UnicodeEncodeError
+Value: 'gbk' codec can't encode character '\u2705' in position 0: illegal multibyte sequence
+Traceback:
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 209, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 117, in main
+    print(f"✅ App icon loaded: {icon_path}")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2705' in position 0: illegal multibyte sequence

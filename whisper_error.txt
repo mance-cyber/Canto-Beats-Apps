@@ -1,0 +1,66 @@
+======================================================================
+Testing Whisper Transcription Only
+======================================================================
+
+[1/2] Extracting audio...
+INFO: Extracting audio from video: E:\Mance\Mercury\Project\2. Reels\2025\11. Nov\Get client\ECF\Footage\H2.MOV
+INFO: Audio extracted to: E:\Mance\Mercury\Project\2. Reels\2025\11. Nov\Get client\ECF\Footage\H2.wav
+  Audio: E:\Mance\Mercury\Project\2. Reels\2025\11. Nov\Get client\ECF\Footage\H2.wav
+
+[2/2] Testing Whisper...
+INFO: Using CUDA device: NVIDIA GeForce RTX 3070 Ti
+INFO: Model manager initialized on device: cuda
+INFO: Whisper ASR initialized with model: alvanlii/whisper-small-cantonese
+INFO: Loading Whisper model: alvanlii/whisper-small-cantonese
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+Device set to use cuda
+INFO: Whisper model loaded successfully on cuda
+INFO: Using dtype: torch.float16
+  Model loaded
+
+  Detecting language...
+INFO: Detecting language: E:\Mance\Mercury\Project\2. Reels\2025\11. Nov\Get client\ECF\Footage\H2.wav
+INFO: Using Cantonese model, returning 'zh'
+  Detected: zh
+
+  Transcribing (this will show full error if it fails)...
+INFO: Transcribing audio: E:\Mance\Mercury\Project\2. Reels\2025\11. Nov\Get client\ECF\Footage\H2.wav
+INFO: Loaded audio: 14.55s duration
+Using `chunk_length_s` is very experimental with seq2seq models. The results will not necessarily be entirely accurate and will have caveats. More information: https://github.com/huggingface/transformers/pull/20104. Ignore this warning with pipeline(..., ignore_warning=True). To use Whisper for long-form transcription, use rather the model's `generate` method directly as the model relies on it's own chunking mechanism (cf. Whisper original paper, section 3.8. Long-form Transcription).
+ERROR: Transcription failed: index 12 is out of bounds for dimension 1 with size 12
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\test_whisper_only.py", line 39, in test_whisper_only
+    transcription = asr.transcribe(
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\models\whisper_asr.py", line 224, in transcribe
+    result = self.pipe(
+  File "C:\Users\ktphi\AppData\Local\Programs\Python\Python310\lib\site-packages\transformers\pipelines\automatic_speech_recognition.py", line 275, in __call__
+    return super().__call__(inputs, **kwargs)
+  File "C:\Users\ktphi\AppData\Local\Programs\Python\Python310\lib\site-packages\transformers\pipelines\base.py", line 1459, in __call__
+    return next(
+  File "C:\Users\ktphi\AppData\Local\Programs\Python\Python310\lib\site-packages\transformers\pipelines\pt_utils.py", line 126, in __next__
+    item = next(self.iterator)
+  File "C:\Users\ktphi\AppData\Local\Programs\Python\Python310\lib\site-packages\transformers\pipelines\pt_utils.py", line 271, in __next__
+    processed = self.infer(next(self.iterator), **self.params)
+  File "C:\Users\ktphi\AppData\Local\Programs\Python\Python310\lib\site-packages\transformers\pipelines\base.py", line 1374, in forward
+    model_outputs = self._forward(model_inputs, **forward_params)
+  File "C:\Users\ktphi\AppData\Local\Programs\Python\Python310\lib\site-packages\transformers\pipelines\automatic_speech_recognition.py", line 542, in _forward
+    tokens = self.model.generate(**generate_kwargs)
+  File "C:\Users\ktphi\AppData\Local\Programs\Python\Python310\lib\site-packages\transformers\models\whisper\generation_whisper.py", line 866, in generate
+    ) = self.generate_with_fallback(
+  File "C:\Users\ktphi\AppData\Local\Programs\Python\Python310\lib\site-packages\transformers\models\whisper\generation_whisper.py", line 1053, in generate_with_fallback
+    seek_sequences, seek_outputs = self._postprocess_outputs(
+  File "C:\Users\ktphi\AppData\Local\Programs\Python\Python310\lib\site-packages\transformers\models\whisper\generation_whisper.py", line 1163, in _postprocess_outputs
+    seek_outputs["token_timestamps"] = self._extract_token_timestamps(
+  File "C:\Users\ktphi\AppData\Local\Programs\Python\Python310\lib\site-packages\transformers\models\whisper\generation_whisper.py", line 263, in _extract_token_timestamps
+    weights = torch.stack([cross_attentions[l][:, h] for l, h in alignment_heads])
+  File "C:\Users\ktphi\AppData\Local\Programs\Python\Python310\lib\site-packages\transformers\models\whisper\generation_whisper.py", line 263, in <listcomp>
+    weights = torch.stack([cross_attentions[l][:, h] for l, h in alignment_heads])
+IndexError: index 12 is out of bounds for dimension 1 with size 12
+
+======================================================================
+ERROR OCCURRED: IndexError: index 12 is out of bounds for dimension 1 with size 12
+======================================================================
+
+Full Traceback:
+======================================================================

@@ -1,0 +1,288 @@
+C:\Users\ktphi\miniconda3\Lib\site-packages\ctranslate2\__init__.py:8: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+INFO: Added DLL path: C:\Users\ktphi\.gemini\antigravity\playground\canto-beats
+INFO: libmpv loaded successfully
+
+============================================================
+Canto-beats - GPU Status Check
+============================================================
+PyTorch Version: 2.9.1+cu126
+CUDA Available: True
+GPU Device: NVIDIA GeForce RTX 3070 Ti
+[OK] GPU acceleration enabled!
+============================================================
+
+INFO: Starting Canto-beats...
+C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py:93: DeprecationWarning: Enum value 'Qt::ApplicationAttribute.AA_EnableHighDpiScaling' is marked as deprecated, please check the documentation for more information.
+  QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
+C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py:94: DeprecationWarning: Enum value 'Qt::ApplicationAttribute.AA_UseHighDpiPixmaps' is marked as deprecated, please check the documentation for more information.
+  QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
+INFO: Loaded font: jf-openhuninn-2.0
+INFO: Stylesheet loaded successfully
+INFO: No valid license found - Running in Trial/Free mode
+INFO: OpenCC S2T converter initialized
+ERROR: Failed to load resources: Expecting ',' delimiter: line 205 column 19 (char 4050)
+QPushButton(0x2462d2d8500, name="primaryButton")  does not have a property named  "graphicsEffect"
+INFO: Application window displayed
+INFO: Loading video: E:/Mance/Mercury/Project/2. Reels/2025/11. Nov/Get client/RTC/test123.mp4
+INFO: Video loaded, duration: 79.9695238095238s
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\ktphi\miniconda3\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2728' in position 6: illegal multibyte sequence
+Call stack:
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 144, in <module>
+    main()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 140, in main
+    sys.exit(app.exec())
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 776, in dropEvent
+    self._load_video(file_path)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 464, in _load_video
+    self.timeline.load_video(file_path)  # Extract and load thumbnails
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\timeline_editor.py", line 773, in load_video
+    thumbnails = VideoThumbnailExtractor.extract_thumbnails(
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\utils\video_utils.py", line 127, in extract_thumbnails
+    logger.info(f"\u2728 Loaded {len(cached_thumbs)} thumbnails from cache (instant!)")
+Message: '\u2728 Loaded 16 thumbnails from cache (instant!)'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\ktphi\miniconda3\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\U0001f4c2' in position 6: illegal multibyte sequence
+Call stack:
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 144, in <module>
+    main()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 140, in main
+    sys.exit(app.exec())
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 776, in dropEvent
+    self._load_video(file_path)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 466, in _load_video
+    self.logger.info(f"\U0001f4c2 已開啟檔案: {file_path}")
+Message: '\U0001f4c2 已開啟檔案: E:/Mance/Mercury/Project/2. Reels/2025/11. Nov/Get client/RTC/test123.mp4'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\ktphi\miniconda3\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\U0001f680' in position 6: illegal multibyte sequence
+Call stack:
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 144, in <module>
+    main()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 140, in main
+    sys.exit(app.exec())
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 477, in _start_transcription
+    self.logger.info("\U0001f680 開始 AI 轉寫...")
+Message: '\U0001f680 開始 AI 轉寫...'
+Arguments: ()
+Extracting thumbnails from E:/Mance/Mercury/Project/2. Reels/2025/11. Nov/Get client/RTC/test123.mp4...
+Extracted 16 thumbnails
+INFO: Using CUDA device: NVIDIA GeForce RTX 3070 Ti
+INFO: Model manager initialized on device: cuda
+INFO: Whisper ASR initialized with model: large-v3, compute_type: float16
+INFO: Using CUDA device: NVIDIA GeForce RTX 3070 Ti
+INFO: Model manager initialized on device: cuda
+INFO: VAD processor initialized (threshold=0.5)
+INFO: Loading Whisper model: large-v3
+INFO: Whisper model loaded successfully on cuda
+INFO: Using compute type: float16
+INFO: Loading Silero VAD model
+Using cache found in C:\Users\ktphi/.cache\torch\hub\snakers4_silero-vad_master
+INFO: Silero VAD model loaded on cuda
+INFO: Transcribing audio: E:\Mance\Mercury\Project\2. Reels\2025\11. Nov\Get client\RTC\test123.mp4
+INFO: Detected language: yue (probability: 1.00)
+INFO: Transcription complete: 53 segments
+INFO: Detecting voice segments: E:\Mance\Mercury\Project\2. Reels\2025\11. Nov\Get client\RTC\test123.mp4
+INFO: Detected 1 voice segments
+INFO: Merging 53 transcription segments with 1 VAD segments
+INFO: Created 36 final segments
+INFO: Unloading Whisper model
+INFO: Step 5: Getting style options
+INFO: Step 6: Applying style or setting segments
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\ktphi\miniconda3\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\U0001f3a8' in position 6: illegal multibyte sequence
+Call stack:
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 144, in <module>
+    main()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 140, in main
+    sys.exit(app.exec())
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 503, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 549, in _on_transcription_finished
+    self._apply_style_processing()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 636, in _apply_style_processing
+    self.logger.info("\U0001f3a8 正在應用風格處理...")
+Message: '\U0001f3a8 正在應用風格處理...'
+Arguments: ()
+INFO: Processing 36 segments with options: {'ai_correction': False, 'style': 'spoken', 'english': 'keep', 'numbers': 'arabic', 'profanity': 'keep', 'split_long': True}
+INFO: [StyleProcessor] Seg 3: ' 定係公司執咗粒呢?' -> ' 定係公司執咗粒呢'
+INFO: Processing complete: 36 segments, 1 changes made
+INFO: Loading subtitle: C:\Users\ktphi\AppData\Local\Temp\tmpvy775lbu.srt
+INFO: Subtitle loaded successfully
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\ktphi\miniconda3\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2705' in position 6: illegal multibyte sequence
+Call stack:
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 144, in <module>
+    main()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 140, in main
+    sys.exit(app.exec())
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 503, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 549, in _on_transcription_finished
+    self._apply_style_processing()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 654, in _apply_style_processing
+    self.logger.info("\u2705 風格處理完成")
+Message: '\u2705 風格處理完成'
+Arguments: ()
+INFO: Step 7: Loading audio to timeline
+DEBUG: Loading audio to timeline...
+Extracting waveform from E:\Mance\Mercury\Project\2. Reels\2025\11. Nov\Get client\RTC\test123.mp4...
+INFO: Loading audio: E:\Mance\Mercury\Project\2. Reels\2025\11. Nov\Get client\RTC\test123.mp4
+INFO: Unloading VAD model
+INFO: Audio loaded: 79.97s duration
+INFO: Waveform extracted: 3999 points
+Setting waveform data (3999 points)...
+DEBUG: Audio loaded to timeline
+DEBUG: Final subtitle update...
+INFO: Loading subtitle: C:\Users\ktphi\AppData\Local\Temp\tmpy4pd0ck3.srt
+INFO: Subtitle loaded successfully
+QFont::setPointSize: Point size <= 0 (-1), must be greater than 0
+DEBUG: Subtitle updated, showing message...
+DEBUG: All done!
+INFO: Style options updated: {'ai_correction': True, 'english': 'keep', 'numbers': 'arabic', 'profanity': 'keep', 'split_long': True, 'style': 'written'}
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\ktphi\miniconda3\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\U0001f3a8' in position 6: illegal multibyte sequence
+Call stack:
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 144, in <module>
+    main()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 140, in main
+    sys.exit(app.exec())
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\style_panel.py", line 255, in _emit_change
+    self.style_changed.emit(options)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 629, in _on_style_changed
+    self._apply_style_processing()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 636, in _apply_style_processing
+    self.logger.info("\U0001f3a8 正在應用風格處理...")
+Message: '\U0001f3a8 正在應用風格處理...'
+Arguments: ()
+INFO: Processing 36 segments with options: {'ai_correction': True, 'english': 'keep', 'numbers': 'arabic', 'profanity': 'keep', 'split_long': True, 'style': 'written'}
+INFO: Initializing Qwen2.5-7B for AI style conversion...
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\ktphi\miniconda3\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\U0001f3ae' in position 6: illegal multibyte sequence
+Call stack:
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 144, in <module>
+    main()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 140, in main
+    sys.exit(app.exec())
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\style_panel.py", line 255, in _emit_change
+    self.style_changed.emit(options)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 629, in _on_style_changed
+    self._apply_style_processing()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 640, in _apply_style_processing
+    processed_segments = self.style_processor.process(
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\subtitle\style_processor.py", line 102, in process
+    text = self._convert_cantonese(text, style, use_ai)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\subtitle\style_processor.py", line 193, in _convert_cantonese
+    profile = detector.detect()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\core\hardware_detector.py", line 138, in detect
+    device, vram_gb = self._detect_gpu()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\core\hardware_detector.py", line 173, in _detect_gpu
+    logger.info(f"\U0001f3ae 檢測到GPU: {gpu_name}")
+Message: '\U0001f3ae 檢測到GPU: NVIDIA GeForce RTX 3070 Ti'
+Arguments: ()
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\ktphi\miniconda3\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\U0001f4be' in position 6: illegal multibyte sequence
+Call stack:
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 144, in <module>
+    main()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 140, in main
+    sys.exit(app.exec())
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\style_panel.py", line 255, in _emit_change
+    self.style_changed.emit(options)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 629, in _on_style_changed
+    self._apply_style_processing()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 640, in _apply_style_processing
+    processed_segments = self.style_processor.process(
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\subtitle\style_processor.py", line 102, in process
+    text = self._convert_cantonese(text, style, use_ai)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\subtitle\style_processor.py", line 193, in _convert_cantonese
+    profile = detector.detect()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\core\hardware_detector.py", line 138, in detect
+    device, vram_gb = self._detect_gpu()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\core\hardware_detector.py", line 174, in _detect_gpu
+    logger.info(f"\U0001f4be VRAM容量: {vram_gb:.2f} GB")
+Message: '\U0001f4be VRAM容量: 8.00 GB'
+Arguments: ()
+INFO: ==================================================
+--- Logging error ---
+Traceback (most recent call last):
+  File "C:\Users\ktphi\miniconda3\Lib\logging\__init__.py", line 1154, in emit
+    stream.write(msg + self.terminator)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'gbk' codec can't encode character '\U0001f680' in position 6: illegal multibyte sequence
+Call stack:
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 144, in <module>
+    main()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 140, in main
+    sys.exit(app.exec())
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\style_panel.py", line 255, in _emit_change
+    self.style_changed.emit(options)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 629, in _on_style_changed
+    self._apply_style_processing()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 640, in _apply_style_processing
+    processed_segments = self.style_processor.process(
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\subtitle\style_processor.py", line 102, in process
+    text = self._convert_cantonese(text, style, use_ai)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\subtitle\style_processor.py", line 193, in _convert_cantonese
+    profile = detector.detect()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\core\hardware_detector.py", line 149, in detect
+    self._log_profile(profile)
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\core\hardware_detector.py", line 221, in _log_profile
+    logger.info(f"\U0001f680 性能套餐: {profile.description}")
+Message: '\U0001f680 性能套餐: 入門性能模式 - 雙模型GPU共存，基礎校對'
+Arguments: ()
+INFO:    設備: CUDA
+INFO:    VRAM: 8.00 GB
+INFO:    ASR模型: large-v3 (int8)
+INFO:    LLM-A: Qwen/Qwen2.5-7B-Instruct (4bit)
+INFO:    LLM-B: 禁用
+INFO:    書面語翻譯: 已啟用
+INFO:    雙語對照: 已啟用
+INFO: ==================================================
+INFO: QwenLLM initialized with profile: entry
+INFO:   LLM-A: Qwen/Qwen2.5-7B-Instruct
+INFO: Loading LLM-A: Qwen/Qwen2.5-7B-Instruct...
+WARNING: bitsandbytes not available, using full precision
+C:\Users\ktphi\miniconda3\Lib\site-packages\huggingface_hub\file_download.py:143: UserWarning: `huggingface_hub` cache-system uses symlinks by default to efficiently store duplicated files but your machine does not support them in C:\Users\ktphi\.cache\huggingface\hub\models--Qwen--Qwen2.5-7B-Instruct. Caching files will still work but in a degraded version that might require more space on your disk. This warning can be disabled by setting the `HF_HUB_DISABLE_SYMLINKS_WARNING` environment variable. For more details, see https://huggingface.co/docs/huggingface_hub/how-to-cache#limitations.
+To support symlinks on Windows, you either need to activate Developer Mode or to run Python as an administrator. In order to activate developer mode, see this article: https://docs.microsoft.com/en-us/windows/apps/get-started/enable-your-device-for-development
+  warnings.warn(message)
+`torch_dtype` is deprecated! Use `dtype` instead!
+
+Fetching 4 files:   0%|          | 0/4 [00:00<?, ?it/s]Xet Storage is enabled for this repo, but the 'hf_xet' package is not installed. Falling back to regular HTTP download. For better performance, install the package with: `pip install huggingface_hub[hf_xet]` or `pip install hf_xet`
+Xet Storage is enabled for this repo, but the 'hf_xet' package is not installed. Falling back to regular HTTP download. For better performance, install the package with: `pip install huggingface_hub[hf_xet]` or `pip install hf_xet`
+Xet Storage is enabled for this repo, but the 'hf_xet' package is not installed. Falling back to regular HTTP download. For better performance, install the package with: `pip install huggingface_hub[hf_xet]` or `pip install hf_xet`
+Xet Storage is enabled for this repo, but the 'hf_xet' package is not installed. Falling back to regular HTTP download. For better performance, install the package with: `pip install huggingface_hub[hf_xet]` or `pip install hf_xet`

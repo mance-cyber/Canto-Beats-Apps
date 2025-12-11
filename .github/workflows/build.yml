@@ -1,0 +1,103 @@
+name: Build Canto-beats
+
+on:
+  push:
+    tags:
+      - 'v*'  # 當推送 tag (如 v1.0.0, v1.1.0) 時觸發
+  workflow_dispatch:  # 允許手動觸發
+
+jobs:
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install nuitka imageio ordered-set
+      
+      - name: Build with Nuitka
+        run: python build_nuitka.py
+      
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Canto-beats-Windows
+          path: dist/Canto-beats.exe
+
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest  # Apple Silicon runner
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install system dependencies
+        run: brew install mpv
+      
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install nuitka imageio ordered-set
+      
+      - name: Build with Nuitka
+        run: python build_nuitka_macos.py
+      
+      - name: Create DMG (optional)
+        run: |
+          mkdir -p dist/dmg
+          cp -r dist/Canto-beats.app dist/dmg/
+          hdiutil create -volname "Canto-beats" -srcfolder dist/dmg -ov -format UDZO dist/Canto-beats.dmg
+      
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Canto-beats-macOS
+          path: |
+            dist/Canto-beats.app
+            dist/Canto-beats.dmg
+
+  create-release:
+    name: Create Release
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Canto-beats-Windows
+          path: windows
+      
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Canto-beats-macOS
+          path: macos
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            windows/Canto-beats.exe
+            macos/Canto-beats.dmg
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

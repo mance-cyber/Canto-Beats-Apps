@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 96%;
+    --card: 217 33% 17%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 24 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 24 100% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 24 100% 50%;
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    @apply scroll-smooth;
+    scroll-padding-top: 100px;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-color: #0F172A;
+    color: #F1F5F9;
+  }
+}
+
+/* Custom utilities */
+.gradient-text {
+  background: linear-gradient(90deg, #FF5400, #FF8A00);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.glow {
+  box-shadow: 0 0 20px rgba(255, 84, 0, 0.3);
+}
+
+.glow-lg {
+  box-shadow: 0 0 30px rgba(255, 84, 0, 0.4);
+}
+
+/* Gradient Line Animation */
+.scrolling-gradient {
+  background: linear-gradient(90deg, #1e293b 0%, #FF5400 50%, #1e293b 100%);
+  background-size: 200% 100%;
+}
+
+/* 3D Tilt CSS */
+.tilt-feature-card {
+  transform-style: preserve-3d;
+  transition: transform 0.1s ease-out;
+}
+
+/* Shimmer effect */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Hero Animation Keyframes */
+@keyframes videoSlideIn {
+  0% { transform: translateX(-180px) scale(0.8); opacity: 0; }
+  10% { transform: translateX(-180px) scale(1); opacity: 1; }
+  40% { transform: translateX(0) scale(0.5); opacity: 0; }
+  100% { transform: translateX(0) scale(0.5); opacity: 0; }
+}
+
+@keyframes srtSlideOut {
+  0%, 60% { transform: translateX(0) scale(0.5); opacity: 0; }
+  65% { transform: translateX(0) scale(1); opacity: 1; }
+  90% { transform: translateX(180px) scale(1); opacity: 1; }
+  100% { transform: translateX(200px) scale(0.8); opacity: 0; }
+}
+
+@keyframes chipPulse {
+  0%, 35% { transform: scale(1); box-shadow: 0 0 0 rgba(255,84,0,0); border-color: #475569; }
+  40%, 60% { transform: scale(1.05); box-shadow: 0 0 40px rgba(255,84,0,0.3); border-color: #FF5400; }
+  65%, 100% { transform: scale(1); box-shadow: 0 0 0 rgba(255,84,0,0); border-color: #475569; }
+}
+
+@keyframes idleState {
+  0%, 35% { opacity: 0.4; }
+  40%, 60% { opacity: 0; }
+  65%, 100% { opacity: 0.4; }
+}
+
+@keyframes processingState {
+  0%, 35% { opacity: 0; transform: scale(0.9); }
+  40%, 60% { opacity: 1; transform: scale(1); }
+  65%, 100% { opacity: 0; transform: scale(0.9); }
+}
+
+@keyframes waveBar {
+  0% { height: 20%; }
+  100% { height: 100%; }
+}
+
+@keyframes typingBar {
+  0% { width: 0%; }
+  100% { width: 100%; }
+}
+
+@keyframes flowLine {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Float animation for download icons - slower */
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.float-slow {
+  animation: floatSlow 4s ease-in-out infinite;
+}
+
+.float-slow-delayed {
+  animation: floatSlow 4s ease-in-out 2s infinite;
+}
+
+.video-slide {
+  animation: videoSlideIn 4s ease-in-out infinite;
+}
+
+.srt-slide {
+  animation: srtSlideOut 4s ease-in-out infinite;
+}
+
+.chip-pulse {
+  animation: chipPulse 4s ease-in-out infinite;
+}
+
+.idle-anim {
+  animation: idleState 4s step-end infinite;
+}
+
+.processing-anim {
+  animation: processingState 4s step-end infinite;
+}
+
+.wave-bar {
+  animation: waveBar 0.5s ease-in-out infinite alternate;
+}
+
+.typing-bar {
+  animation: typingBar 1s steps(10) infinite;
+}
+
+.flow-line {
+  animation: flowLine 2s linear infinite;
+}

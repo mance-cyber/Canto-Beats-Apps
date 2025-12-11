@@ -1,0 +1,326 @@
+"""
+Whisper Automatic Speech Recognition (ASR) integration.
+
+Provides Cantonese speech-to-text using faster-whisper (CTranslate2).
+"""
+
+import os
+import torch
+import numpy as np
+from pathlib import Path
+from typing import Optional, Dict, List, Union
+from dataclasses import dataclass
+
+from faster_whisper import WhisperModel
+
+from models.model_manager import ModelManager
+from core.config import Config
+from utils.logger import setup_logger
+from utils.audio_utils import AudioPreprocessor
+
+
+logger = setup_logger()
+
+
+@dataclass
+class TranscriptionSegment:
+    """A segment of transcribed text with timing information."""
+    
+    id: int
+    start: float  # Start time in seconds
+    end: float    # End time in seconds
+    text: str
+    confidence: float = 1.0
+    language: str = "yue"
+    words: List[Dict] = None  # Word-level timestamps
+
+
+class WhisperASR(ModelManager):
+    """
+    Whisper Automatic Speech Recognition for Cantonese.
+    
+    Uses faster-whisper (CTranslate2) with official Whisper models.
+    
+    Supports:
+    - Cantonese with 'yue' language code
+    - Word-level timestamps
+    - GPU acceleration with FP16
+    - Much faster than Hugging Face Transformers (4-5x)
+    - Lower memory usage (~50% reduction)
+    """
+    
+    def __init__(self, config: Config, model_size: Optional[str] = None):
+        """
+        Initialize Whisper ASR.
+        
+        Args:
+            config: Application configuration
+            model_size: Model size override (default: "large-v3")
+        """
+        super().__init__(config)
+        
+        self.audio_preprocessor = AudioPreprocessor()
+        
+        # Determine model size
+        self.model_size = model_size or "large-v3"
+        
+        # Determine compute type based on device
+        compute_type = config.get('compute_type', 'auto')
+        if compute_type == 'auto':
+            self.compute_type = "float16" if torch.cuda.is_available() else "int8"
+        else:
+            self.compute_type = compute_type
+        
+        logger.info(f"Whisper ASR initialized with model: {self.model_size}, compute_type: {self.compute_type}")
+    
+    def load_model(self):
+        """Load Whisper model using faster-whisper."""
+        if self.is_loaded:
+            logger.warning("Model already loaded")
+            return
+        
+        logger.info(f"Loading Whisper model: {self.model_size}")
+        
+        try:
+            # Determine device
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            
+            # Load model with faster-whisper
+            self.model = WhisperModel(
+                self.model_size,
+                device=device,
+                compute_type=self.compute_type,
+                download_root=str(self.get_model_cache_dir())
+            )
+            
+            self.is_loaded = True
+            logger.info(f"Whisper model loaded successfully on {device}")
+            logger.info(f"Using compute type: {self.compute_type}")
+            
+        except Exception as e:
+            logger.error(f"Failed to load Whisper model: {e}")
+            raise
+    
+    def unload_model(self):
+        """Unload Whisper model and free memory."""
+        if not self.is_loaded:
+            return
+        
+        logger.info("Unloading Whisper model")
+        
+        del self.model
+        self.model = None
+        self.is_loaded = False
+        
+        # Clear GPU cache
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    
+    def transcribe(
+        self,
+        audio_path: Union[str, Path],
+        language: str = "yue",
+        task: str = "transcribe",
+        initial_prompt: Optional[str] = None,
+        word_timestamps: bool = True,
+        **kwargs
+    ) -> Dict:
+        """
+        Transcribe audio file to text.
+        
+        Args:
+            audio_path: Path to audio file
+            language: Language code (default: "yue" for Cantonese)
+            task: "transcribe" or "translate"
+            initial_prompt: Optional prompt to guide the model
+            word_timestamps: Enable word-level timestamps
+            **kwargs: Additional options
+            
+        Returns:
+            Dict with transcription results
+        """
+        if not self.is_loaded:
+            self.load_model()
+        
+        logger.info(f"Transcribing audio: {audio_path}")
+        
+        # Validate audio file
+        if not self.audio_preprocessor.validate_audio_file(audio_path):
+            raise ValueError(f"Invalid audio file: {audio_path}")
+        
+        # Cantonese-specific prompt with rich vocabulary
+        if initial_prompt is None and language in ["yue", "zh"]:
+            initial_prompt = "以下係廣東話對白，請用粵語口語字幕：佢、喺、睇、嘅、咁、啲、咗、嚟、冇、諗、唔、咩、乜、點、邊、噉、嗰、呢、哋、咪、囉、喎、啦、㗎、吖。"
+        
+        try:
+            # Get transcription settings from config
+            beam_size = self.config.get('beam_size', 5)
+            
+            # Transcribe using faster-whisper
+            segments, info = self.model.transcribe(
+                str(audio_path),
+                language=language,
+                task=task,
+                beam_size=beam_size,
+                word_timestamps=word_timestamps,
+                initial_prompt=initial_prompt,
+                vad_filter=False,  # We use our own VAD
+                **kwargs
+            )
+            
+            logger.info(f"Detected language: {info.language} (probability: {info.language_probability:.2f})")
+            
+            # Extract segments
+            segment_list = self._extract_segments(segments, language)
+            
+            # Combine all text
+            full_text = " ".join([seg.text.strip() for seg in segment_list])
+            
+            logger.info(f"Transcription complete: {len(segment_list)} segments")
+            
+            return {
+                'text': full_text,
+                'segments': segment_list,
+                'language': info.language,
+                'language_probability': info.language_probability
+            }
+            
+        except Exception as e:
+            logger.error(f"Transcription failed: {e}")
+            raise
+    
+    def _extract_segments(self, segments, language: str) -> List[TranscriptionSegment]:
+        """
+        Extract segments from faster-whisper output.
+        
+        Args:
+            segments: Iterator of segment objects from faster-whisper
+            language: Language code
+            
+        Returns:
+            List of TranscriptionSegment objects
+        """
+        segment_list = []
+        
+        for i, segment in enumerate(segments):
+            # Extract words if available
+            words = []
+            if hasattr(segment, 'words') and segment.words:
+                words = [
+                    {
+                        'word': w.word,
+                        'start': w.start,
+                        'end': w.end,
+                        'probability': w.probability
+                    }
+                    for w in segment.words
+                ]
+            
+            seg = TranscriptionSegment(
+                id=i,
+                start=segment.start,
+                end=segment.end,
+                text=segment.text,
+                confidence=segment.avg_logprob if hasattr(segment, 'avg_logprob') else 1.0,
+                language=language,
+                words=words
+            )
+            segment_list.append(seg)
+        
+        return segment_list
+    
+    def detect_language(self, audio_path: Union[str, Path]) -> str:
+        """
+        Detect the spoken language in audio.
+        
+        Args:
+            audio_path: Path to audio file
+            
+        Returns:
+            Detected language code
+        """
+        if not self.is_loaded:
+            self.load_model()
+        
+        logger.info(f"Detecting language: {audio_path}")
+        
+        try:
+            # Use faster-whisper's built-in language detection
+            # Read first 30 seconds for detection
+            language_info = self.model.detect_language(str(audio_path))
+            
+            detected_lang = language_info[0][0]  # (language_code, probability)
+            probability = language_info[0][1]
+            
+            logger.info(f"Detected language: {detected_lang} (probability: {probability:.2f})")
+            
+            return detected_lang
+            
+        except Exception as e:
+            logger.error(f"Language detection failed: {e}")
+            # Default to Cantonese
+            logger.warning("Defaulting to 'yue'")
+            return 'yue'
+    
+    def get_model_info(self) -> Dict:
+        """
+        Get information about the loaded model.
+        
+        Returns:
+            Dict with model information
+        """
+        return {
+            'model_size': self.model_size,
+            'is_loaded': self.is_loaded,
+            'device': str(self.device),
+            'compute_type': self.compute_type,
+            'backend': 'faster-whisper (CTranslate2)',
+            **self.get_device_info()
+        }
+
+
+def test_whisper():
+    """Test Whisper ASR with sample audio file."""
+    import sys
+    
+    if len(sys.argv) < 2:
+        print("Usage: python -m src.models.whisper_asr <audio_file>")
+        return
+    
+    audio_file = sys.argv[1]
+    
+    # Initialize
+    from core.config import Config
+    config = Config()
+    
+    asr = WhisperASR(config)
+    
+    # Load model
+    print("Loading model...")
+    asr.load_model()
+    
+    print(f"Model info: {asr.get_model_info()}")
+    
+    # Detect language
+    print("\nDetecting language...")
+    lang = asr.detect_language(audio_file)
+    print(f"Detected: {lang}")
+    
+    # Transcribe
+    print("\nTranscribing...")
+    result = asr.transcribe(audio_file, language=lang)
+    
+    print(f"\nTranscription:")
+    print(result['text'])
+    
+    print(f"\nSegments ({len(result['segments'])}):")
+    for seg in result['segments'][:5]:  # Show first 5
+        print(f"  [{seg.start:.2f}s - {seg.end:.2f}s] {seg.text}")
+    
+    # Cleanup
+    asr.cleanup()
+    print("\nDone!")
+
+
+if __name__ == "__main__":
+    test_whisper()

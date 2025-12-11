@@ -1,0 +1,33 @@
+Debugging Whisper Output
+======================================================================
+Extracting audio...
+INFO: Extracting audio from video: E:\Mance\Mercury\Project\2. Reels\2025\11. Nov\Get client\ECF\Footage\H2.MOV
+INFO: Audio extracted to: E:\Mance\Mercury\Project\2. Reels\2025\11. Nov\Get client\ECF\Footage\H2.wav
+Loading Whisper...
+INFO: Using CUDA device: NVIDIA GeForce RTX 3070 Ti
+INFO: Model manager initialized on device: cuda
+INFO: Whisper ASR initialized with model: alvanlii/whisper-small-cantonese
+INFO: Loading Whisper model: alvanlii/whisper-small-cantonese
+`torch_dtype` is deprecated! Use `dtype` instead!
+`torch_dtype` is deprecated! Use `dtype` instead!
+Device set to use cuda
+INFO: Whisper model loaded successfully on cuda
+INFO: Using dtype: torch.float16
+Transcribing...
+INFO: Transcribing audio: E:\Mance\Mercury\Project\2. Reels\2025\11. Nov\Get client\ECF\Footage\H2.wav
+INFO: Loaded audio: 14.55s duration
+Using `chunk_length_s` is very experimental with seq2seq models. The results will not necessarily be entirely accurate and will have caveats. More information: https://github.com/huggingface/transformers/pull/20104. Ignore this warning with pipeline(..., ignore_warning=True). To use Whisper for long-form transcription, use rather the model's `generate` method directly as the model relies on it's own chunking mechanism (cf. Whisper original paper, section 3.8. Long-form Transcription).
+Whisper did not predict an ending timestamp, which can happen if audio is cut off in the middle of a word. Also make sure WhisperTimeStampLogitsProcessor was used during generation.
+INFO: Transcription complete: 1 segments
+
+Result keys: dict_keys(['text', 'segments', 'language'])
+Text:  電商大學嘅formula，你今年嘅Black Friday會收錢收到手願
+Number of segments: 1
+
+First 3 segments:
+
+Segment 0:
+  Type: <class 'models.whisper_asr.TranscriptionSegment'>
+  TranscriptionSegment(id=0, start=0.0, end=0.0, text='電商大學嘅formula，你今年嘅Black Friday會收錢收到手願', confidence=1.0, language='zh', words=[])
+
+======================================================================

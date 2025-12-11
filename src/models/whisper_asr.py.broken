@@ -1,0 +1,337 @@
+"""
+Whisper Automatic Speech Recognition (ASR) integration.
+
+Provides Cantonese speech-to-text using Hugging Face Transformers.
+"""
+
+import os
+import torch
+import numpy as np
+from pathlib import Path
+from typing import Optional, Dict, List, Union
+from dataclasses import dataclass
+
+from transformers import (
+    AutoModelForSpeechSeq2Seq,
+    AutoProcessor,
+    pipeline
+)
+
+from models.model_manager import ModelManager
+from core.config import Config
+from utils.logger import setup_logger
+from utils.audio_utils import AudioPreprocessor
+
+
+logger = setup_logger()
+
+
+@dataclass
+class TranscriptionSegment:
+    """A segment of transcribed text with timing information."""
+    
+    id: int
+    start: float  # Start time in seconds
+    end: float    # End time in seconds
+    text: str
+    confidence: float = 1.0
+    language: str = "zh"
+    words: List[Dict] = None  # Word-level timestamps
+
+
+class WhisperASR(ModelManager):
+    """
+    Whisper Automatic Speech Recognition for Cantonese.
+    
+    Uses Hugging Face Transformers with Cantonese-finetuned models.
+    
+    Supports:
+    - Cantonese-finetuned models from HuggingFace Hub
+    - Word-level timestamps
+    - Language detection
+    - GPU acceleration with FP16
+    """
+    
+    def __init__(self, config: Config, model_size: Optional[str] = None):
+        """
+        Initialize Whisper ASR.
+        
+        Args:
+            config: Application configuration
+            model_size: Model size override (default: from config)
+        """
+        super().__init__(config)
+        
+        self.audio_preprocessor = AudioPreprocessor()
+        self.processor = None
+        self.pipe = None
+        
+        # Determine model ID
+        self.model_id = self._get_model_id(config, model_size)
+        
+        logger.info(f"Whisper ASR initialized with model: {self.model_id}")
+    
+    def _get_model_id(self, config: Config, model_size: Optional[str] = None) -> str:
+        """Determine which model to use based on config."""
+        
+        # Use Cantonese models if enabled
+        if config.get('use_cantonese_model', True):
+            build_type = config.get('build_type', 'flagship')
+            
+            if build_type == 'lite':
+                return config.get('cantonese_model_lite', 'alvanlii/whisper-small-cantonese')
+            else:  # flagship
+                return config.get('cantonese_model_flagship', 'khleeloo/whisper-large-v3-cantonese')
+        
+        # Fallback to legacy OpenAI models (NOT RECOMMENDED for Cantonese)
+        if model_size:
+            return f"openai/whisper-{model_size}"
+        
+        legacy_model = config.get('whisper_model', 'base')
+        return f"openai/whisper-{legacy_model}"
+    
+    def load_model(self):
+        """Load Whisper model from Hugging Face."""
+        if self.is_loaded:
+            logger.warning("Model already loaded")
+            return
+        
+        logger.info(f"Loading Whisper model: {self.model_id}")
+        
+        try:
+            # Determine torch dtype based on device
+            torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+            
+            # Load model with auto device mapping
+            self.model = AutoModelForSpeechSeq2Seq.from_pretrained(
+                self.model_id,
+                torch_dtype=torch_dtype,
+                low_cpu_mem_usage=True,
+                use_safetensors=True,
+                cache_dir=str(self.get_model_cache_dir())
+            )
+            
+            # Move to device
+            self.model.to(self.device)
+            
+            # Load processor (tokenizer + feature extractor)
+            self.processor = AutoProcessor.from_pretrained(
+                self.model_id,
+                cache_dir=str(self.get_model_cache_dir())
+            )
+            
+            # Create ASR pipeline
+            self.pipe = pipeline(
+            
+        except Exception as e:
+            logger.error(f"Failed to load Whisper model: {e}")
+            raise
+    
+    def unload_model(self):
+        """Unload Whisper model and free memory."""
+        if not self.is_loaded:
+            return
+        
+        logger.info("Unloading Whisper model")
+        
+        del self.model
+        del self.processor
+        del self.pipe
+        
+        self.model = None
+        self.processor = None
+        self.pipe = None
+        self.is_loaded = False
+        
+        # Clear GPU cache
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    
+    def transcribe(
+        self,
+        audio_path: Union[str, Path],
+        language: str = "zh",
+        task: str = "transcribe",
+        initial_prompt: Optional[str] = None,
+        word_timestamps: bool = True,
+        **kwargs
+    ) -> Dict:
+        """
+        Transcribe audio file to text.
+        
+        Args:
+            audio_path: Path to audio file
+            language: Language code (default: "zh" for Cantonese)
+            task: "transcribe" or "translate"
+            initial_prompt: Optional prompt to guide the model
+            word_timestamps: Enable word-level timestamps
+            **kwargs: Additional options
+            
+        Returns:
+            Dict with transcription results
+        """
+        if not self.is_loaded:
+            self.load_model()
+        
+        logger.info(f"Transcribing audio: {audio_path}")
+        
+        # Validate audio file
+        if not self.audio_preprocessor.validate_audio_file(audio_path):
+            raise ValueError(f"Invalid audio file: {audio_path}")
+        
+        # Cantonese-specific prompt
+        if initial_prompt is None and language == "zh":
+            initial_prompt = "以下係廣東話對白，請用粵語口語字幕：佢、喺、睇、嘅、咁、啲、咗。"
+        
+        try:
+            # Load audio file properly
+            import librosa
+            
+            # Load audio with librosa (resample to 16kHz as required by Whisper)
+            audio_array, sampling_rate = librosa.load(
+                str(audio_path),
+                sr=16000,  # Whisper requires 16kHz
+                mono=True
+            )
+            
+            logger.info(f"Loaded audio: {len(audio_array)/sampling_rate:.2f}s duration")
+            
+            # Prepare generation kwargs
+            generate_kwargs = {
+                "language": language,
+                "task": task
+            }
+            
+            if initial_prompt:
+                prompt_ids = self.processor.get_prompt_ids(initial_prompt)
+                # Convert to tensor and move to device
+                generate_kwargs["prompt_ids"] = torch.tensor(prompt_ids).to(self.device)
+            
+            # Transcribe using pipeline
+            # Note: return_timestamps="word" causes alignment_heads index error
+            # with some models. Using segment-level timestamps instead.
+            result = self.pipe(
+                {"raw": audio_array, "sampling_rate": sampling_rate},
+                generate_kwargs=generate_kwargs,
+                return_timestamps=True,  # Segment timestamps only (not "word")
+                chunk_length_s=30  # Process in 30s chunks for long audio
+            )
+            
+            # Extract segments from pipeline output
+            segments = self._extract_segments_from_pipeline(result)
+            
+            logger.info(f"Transcription complete: {len(segments)} segments")
+            
+            return {
+                'text': result.get('text', ''),
+                'segments': segments,
+                'language': language  # Return requested language
+            }
+            
+        except Exception as e:
+            logger.error(f"Transcription failed: {e}")
+            raise
+    
+    def _extract_segments_from_pipeline(self, result: Dict) -> List[TranscriptionSegment]:
+        """
+        Extract segments from Transformers pipeline output.
+                start=start,
+                end=end,
+                text=chunk.get('text', '').strip(),
+                confidence=1.0,  # Pipeline doesn't provide confidence
+                language='zh',
+                words=[]  # Word info would need separate processing
+            )
+            segments.append(segment)
+        
+        return segments
+    
+    def detect_language(self, audio_path: Union[str, Path]) -> str:
+        """
+        Detect the spoken language in audio.
+        
+        Note: For Cantonese-finetuned models, this will always return 'zh'
+        as the model is optimized for Cantonese.
+        
+        Args:
+            audio_path: Path to audio file
+            
+        Returns:
+            Detected language code
+        """
+        if not self.is_loaded:
+            self.load_model()
+        
+        logger.info(f"Detecting language: {audio_path}")
+        
+        # For Cantonese models, always return 'zh'
+        if 'cantonese' in self.model_id.lower():
+            logger.info("Using Cantonese model, returning 'zh'")
+            return 'zh'
+        
+        # For generic models, we'd need to implement proper detection
+        # For now, default to Cantonese
+        logger.warning("Language detection not fully implemented, defaulting to 'zh'")
+        return 'zh'
+    
+    def get_model_info(self) -> Dict:
+        """
+        Get information about the loaded model.
+        
+        Returns:
+            Dict with model information
+        """
+        return {
+            'model_id': self.model_id,
+            'is_loaded': self.is_loaded,
+            'device': str(self.device),
+            'is_cantonese': 'cantonese' in self.model_id.lower(),
+            **self.get_device_info()
+        }
+
+
+def test_whisper():
+    """Test Whisper ASR with sample audio file."""
+    import sys
+    
+    if len(sys.argv) < 2:
+        print("Usage: python -m src.models.whisper_asr <audio_file>")
+        return
+    
+    audio_file = sys.argv[1]
+    
+    # Initialize
+    from core.config import Config
+    config = Config()
+    
+    asr = WhisperASR(config)
+    
+    # Load model
+    print("Loading model...")
+    asr.load_model()
+    
+    print(f"Model info: {asr.get_model_info()}")
+    
+    # Detect language
+    print("\nDetecting language...")
+    lang = asr.detect_language(audio_file)
+    print(f"Detected: {lang}")
+    
+    # Transcribe
+    print("\nTranscribing...")
+    result = asr.transcribe(audio_file, language=lang)
+    
+    print(f"\nTranscription:")
+    print(result['text'])
+    
+    print(f"\nSegments ({len(result['segments'])}):") 
+    for seg in result['segments'][:5]:  # Show first 5
+        print(f"  [{seg.start:.2f}s - {seg.end:.2f}s] {seg.text}")
+    
+    # Cleanup
+    asr.cleanup()
+    print("\nDone!")
+
+
+if __name__ == "__main__":
+    test_whisper()

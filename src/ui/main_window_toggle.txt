@@ -1,0 +1,8 @@
+    def _toggle_maximize(self):
+        """Toggle between maximize and normal window state."""
+        if self.isMaximized():
+            self.showNormal()
+            self.max_btn.setText("□")
+        else:
+            self.showMaximized()
+            self.max_btn.setText("❐")

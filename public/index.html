@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>粵語自動字幕生成器｜99.9% 準確｜HK$199 買斷永久用</title>
+    <meta name="description" content="全港最強粵語字幕工具，連粗口懶音都識別，3 秒即時試玩，HK$199 一次過永久解鎖 SRT/ASS 輸出！">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+HK:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans HK"', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#FF5400',
+                        'primary-hover': '#FF8A00',
+                        dark: '#0F172A',
+                        card: '#1E293B',
+                    },
+                    animation: {
+                        'flow-line': 'flowLine 2s linear infinite',
+                        'item-travel': 'itemTravel 4s cubic-bezier(0.4, 0, 0.2, 1) infinite',
+                        'chip-pulse': 'chipPulse 4s ease-in-out infinite',
+                        'fade-in-up': 'fadeInUp 0.5s ease-out forwards',
+                        'status-text': 'statusText 4s step-end infinite',
+                        'wave': 'wave 1s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        flowLine: {
+                            '0%': { backgroundPosition: '200% 0' },
+                            '100%': { backgroundPosition: '-200% 0' },
+                        },
+                        itemTravel: {
+                            '0%': { transform: 'translateX(-180px) scale(0.8)', opacity: '0' },
+                            '10%': { transform: 'translateX(-180px) scale(1)', opacity: '1' }, // Start Left
+                            '40%': { transform: 'translateX(0) scale(0.5)', opacity: '0' }, // Hit Center & Vanish
+                            '41%': { transform: 'translateX(0) scale(0)', opacity: '0' }, // Stay Hidden
+                            '60%': { transform: 'translateX(0) scale(0)', opacity: '0' }, // Stay Hidden (Processing)
+                            '61%': { transform: 'translateX(0) scale(0.5)', opacity: '0' }, // Reappear Center
+                            '65%': { transform: 'translateX(0) scale(1)', opacity: '1' }, // Poof Out
+                            '90%': { transform: 'translateX(180px) scale(1)', opacity: '1' }, // End Right
+                            '100%': { transform: 'translateX(200px) scale(0.8)', opacity: '0' },
+                        },
+                        videoSlideIn: {
+                            '0%': { transform: 'translateX(-200%)', opacity: '0' },
+                            '15%': { transform: 'translateX(-200%)', opacity: '1' },
+                            '40%': { transform: 'translateX(0%) scale(0.8)', opacity: '0' }, // Enters Chip
+                            '100%': { transform: 'translateX(0%) scale(0.8)', opacity: '0' },
+                        },
+                        srtSlideOut: {
+                            '0%, 60%': { transform: 'translateX(0%) scale(0.5)', opacity: '0' },
+                            '65%': { transform: 'translateX(0%) scale(1)', opacity: '1' }, // Pops out of Chip
+                            '90%': { transform: 'translateX(200%)', opacity: '1' },
+                            '100%': { transform: 'translateX(220%)', opacity: '0' },
+                        },
+                        chipPulse: {
+                            '0%, 35%': { transform: 'scale(1)', boxShadow: '0 0 0 rgba(255,84,0,0)' },
+                            '40%, 60%': { transform: 'scale(1.1)', boxShadow: '0 0 30px rgba(255,84,0,0.5)', borderColor: '#FF5400' }, // Processing State
+                            '65%, 100%': { transform: 'scale(1)', boxShadow: '0 0 0 rgba(255,84,0,0)' },
+                        },
+                        wave: {
+                            '0%, 100%': { height: '10%' },
+                            '50%': { height: '60%' },
+                        },
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0F172A;
+            color: #F1F5F9;
+        }
+        .gradient-text {
+            background: linear-gradient(90deg, #FF5400, #FF8A00);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .glow {
+            box-shadow: 0 0 20px rgba(255, 84, 0, 0.3);
+        }
+        /* Gradient Line Animation */
+        .scrolling-gradient {
+            background: linear-gradient(90deg, #1e293b 0%, #FF5400 50%, #1e293b 100%);
+            background-size: 200% 100%;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-primary selection:text-white overflow-x-hidden">
+
+    <!-- Navbar -->
+    <nav class="container mx-auto px-6 py-6 flex justify-between items-center relative z-20">
+        <div class="flex items-center gap-2">
+            <img src="/app icon_002.png" alt="Canto-Beats" class="w-8 h-8">
+            <span class="text-xl font-bold tracking-tight">Canto-Beats</span>
+        </div>
+        <a href="#pricing" class="hidden md:block bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg font-medium transition">
+            立即購買
+        </a>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="container mx-auto px-6 pt-10 pb-20 text-center relative z-10">
+        
+        <!-- === 優化版循環動畫 === -->
+        <div class="relative w-full max-w-2xl mx-auto h-48 mb-8 flex flex-col items-center justify-center select-none pointer-events-none">
+            
+            <!-- 動畫主舞台 -->
+            <div class="relative w-full flex items-center justify-center h-24">
+                
+                <!-- 背景連線 (Track) -->
+                <div class="absolute w-3/4 h-2 bg-slate-800 rounded-full overflow-hidden z-0">
+                    <div class="w-full h-full scrolling-gradient animate-flow-line opacity-30"></div>
+                </div>
+
+                <!-- 1. 左側：影片檔 (Video Input) -->
+                <div class="absolute z-10 animate-[videoSlideIn_4s_ease-in-out_infinite] flex flex-col items-center">
+                    <div class="w-16 h-16 bg-slate-700 rounded-xl border-2 border-slate-500 flex items-center justify-center text-slate-300 shadow-xl relative">
+                        <i data-lucide="video" class="w-8 h-8"></i>
+                        <!-- Badge -->
+                        <div class="absolute -top-2 -right-2 bg-blue-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">MP4</div>
+                    </div>
+                </div>
+
+                <!-- 2. 中間：AI 處理器 (Processor) -->
+                <div class="relative z-20 animate-chip-pulse bg-slate-800 w-24 h-24 rounded-2xl border-2 border-slate-600 flex items-center justify-center shadow-2xl transition-colors duration-300">
+                    <!-- 處理時顯示的聲波 -->
+                    <div class="absolute inset-0 flex items-center justify-center gap-1 opacity-0 animate-[opacity_4s_linear_infinite]">
+                        <!-- 通過 keyframes 控制這些 bar 在 40%-60% 時間段顯示並跳動 -->
+                        <style>
+                            @keyframes showWave {
+                                0%, 35% { opacity: 0; }
+                                40%, 60% { opacity: 1; }
+                                65%, 100% { opacity: 0; }
+                            }
+                        </style>
+                        <div class="w-1 bg-primary rounded-full animate-[wave_0.5s_ease-in-out_infinite] h-4" style="animation-delay: 0s; animation-name: showWave, wave;"></div>
+                        <div class="w-1 bg-primary rounded-full animate-[wave_0.6s_ease-in-out_infinite] h-6" style="animation-delay: 0.1s; animation-name: showWave, wave;"></div>
+                        <div class="w-1 bg-primary rounded-full animate-[wave_0.4s_ease-in-out_infinite] h-8" style="animation-delay: 0.2s; animation-name: showWave, wave;"></div>
+                        <div class="w-1 bg-primary rounded-full animate-[wave_0.7s_ease-in-out_infinite] h-5" style="animation-delay: 0.3s; animation-name: showWave, wave;"></div>
+                    </div>
+
+                    <!-- 靜態圖標 (處理時隱藏) -->
+                    <i data-lucide="cpu" class="w-10 h-10 text-slate-500 transition-opacity duration-300" style="animation: hideCpu 4s step-end infinite"></i>
+                    <style>
+                        @keyframes hideCpu {
+                            0%, 35% { opacity: 1; }
+                            40%, 60% { opacity: 0.2; }
+                            65%, 100% { opacity: 1; }
+                        }
+                    </style>
+                </div>
+
+                <!-- 3. 右側：字幕檔 (SRT Output) -->
+                <div class="absolute z-10 animate-[srtSlideOut_4s_ease-in-out_infinite] flex flex-col items-center">
+                    <div class="w-16 h-16 bg-white rounded-xl border-2 border-primary flex items-center justify-center text-primary shadow-[0_0_20px_rgba(255,84,0,0.4)] relative">
+                        <i data-lucide="file-text" class="w-8 h-8"></i>
+                        <!-- Badge -->
+                        <div class="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">SRT</div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- 狀態文字 (Status Text) -->
+            <div class="mt-4 h-6 text-sm font-mono font-bold tracking-wider relative w-full">
+                <style>
+                    @keyframes cycleText {
+                        0%, 35% { content: "1. 拖入影片檔案..."; color: #94a3b8; }
+                        40%, 60% { content: "2. AI 識別語音中..."; color: #FF5400; text-shadow: 0 0 10px rgba(255,84,0,0.5); }
+                        65%, 100% { content: "3. 生成字幕成功！"; color: #4ade80; }
+                    }
+                    .status-indicator::after {
+                        content: "1. 拖入影片檔案...";
+                        animation: cycleText 4s step-end infinite;
+                    }
+                </style>
+                <div class="status-indicator"></div>
+            </div>
+
+        </div>
+        <!-- === END 動畫 === -->
+
+        <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary font-bold text-sm mb-6 border border-primary/20">
+            <span class="relative flex h-3 w-3">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+            </span>
+            v2.0 全新發佈：準確率提升至 99.9%
+        </div>
+        
+        <h1 class="text-4xl md:text-6xl font-black mb-6 leading-tight">
+            全港最強<br>
+            <span class="gradient-text">粵語自動字幕生成器</span>
+        </h1>
+        
+        <p class="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
+            專為香港 YouTuber、Podcast 主設計。連<span class="text-white font-bold">粗口、懶音、中英夾雜</span>都完美識別。<br>
+            唔洗再逐隻字打，3 分鐘片只需 10 秒搞掂。
+        </p>
+
+        <div class="flex flex-col md:flex-row justify-center gap-4">
+            <!-- 移除免費試玩按鈕，只保留下載按鈕並加大 -->
+            <a href="#download" class="bg-primary hover:bg-primary-hover text-white px-10 py-5 rounded-xl font-bold text-xl transition transform hover:-translate-y-1 glow flex items-center justify-center gap-2 shadow-lg shadow-primary/25">
+                <i data-lucide="download"></i> 立即下載軟件
+            </a>
+        </div>
+    </header>
+
+    <!-- Demo Section (Interactive) -->
+    <section id="demo" class="bg-card/50 py-20 border-y border-white/5">
+        <div class="container mx-auto px-6">
+            <div class="max-w-4xl mx-auto bg-card border border-slate-700 rounded-2xl p-8 shadow-2xl relative overflow-hidden">
+                <!-- Decorative gradient blob -->
+                <div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none"></div>
+
+                <div class="text-center mb-10">
+                    <!-- 改為「即時試玩」 -->
+                    <h2 class="text-5xl md:text-6xl font-black mb-4 text-white drop-shadow-xl">
+                        即時試玩
+                    </h2>
+                    <p class="text-xl text-primary font-bold tracking-wider mb-2 uppercase">1 分鐘極速體驗</p>
+                    <p class="text-slate-400">請選擇一個場景，即時睇下 AI 點樣完美識別不同語氣嘅廣東話！</p>
+                </div>
+
+                <!-- Scenario Selection Grid -->
+                <div id="scenario-selector" class="grid md:grid-cols-3 gap-4 mb-8">
+                    <!-- Option 1 -->
+                    <button onclick="selectScenario(0)" class="bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 hover:border-primary p-6 rounded-xl transition text-left group relative overflow-hidden">
+                        <div class="w-12 h-12 bg-red-500/10 text-red-500 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition">
+                            <i data-lucide="youtube" class="w-6 h-6"></i>
+                        </div>
+                        <h3 class="font-bold text-lg mb-1 text-white">YouTuber Vlog</h3>
+                        <p class="text-sm text-slate-400">測試：語速快、生活用語</p>
+                        <div class="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition transform translate-y-2 group-hover:translate-y-0 text-primary">
+                            <i data-lucide="play-circle" class="w-6 h-6"></i>
+                        </div>
+                    </button>
+
+                    <!-- Option 2 (Modified) -->
+                    <button onclick="selectScenario(1)" class="bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 hover:border-primary p-6 rounded-xl transition text-left group relative overflow-hidden">
+                        <div class="w-12 h-12 bg-blue-500/10 text-blue-500 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition">
+                            <i data-lucide="graduation-cap" class="w-6 h-6"></i>
+                        </div>
+                        <h3 class="font-bold text-lg mb-1 text-white">網上課程教學</h3>
+                        <p class="text-sm text-slate-400">測試：學術概念、清晰講解</p>
+                        <div class="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition transform translate-y-2 group-hover:translate-y-0 text-primary">
+                            <i data-lucide="play-circle" class="w-6 h-6"></i>
+                        </div>
+                    </button>
+
+                    <!-- Option 3 -->
+                    <button onclick="selectScenario(2)" class="bg-slate-800 hover:bg-slate-700 border-2 border-slate-700 hover:border-primary p-6 rounded-xl transition text-left group relative overflow-hidden">
+                        <div class="w-12 h-12 bg-green-500/10 text-green-500 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition">
+                            <i data-lucide="message-circle" class="w-6 h-6"></i>
+                        </div>
+                        <h3 class="font-bold text-lg mb-1 text-white">日常懶音對話</h3>
+                        <p class="text-sm text-slate-400">測試：嚴重懶音、口語助詞</p>
+                        <div class="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition transform translate-y-2 group-hover:translate-y-0 text-primary">
+                            <i data-lucide="play-circle" class="w-6 h-6"></i>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Progress State (Hidden by default) -->
+                <div id="progress-area" class="hidden py-12 px-4 max-w-xl mx-auto text-center">
+                    <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce text-primary">
+                         <i data-lucide="mic" class="w-8 h-8"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-6" id="progress-title">正在模擬分析音頻...</h3>
+                    
+                    <div class="w-full bg-slate-700 rounded-full h-3 overflow-hidden mb-2">
+                        <div id="progress-bar" class="bg-primary h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-slate-500 font-mono">
+                        <span id="progress-text">初始化...</span>
+                        <span id="progress-percent">0%</span>
+                    </div>
+                </div>
+
+                <!-- Result Area (Hidden by default) -->
+                <div id="result-area" class="hidden mt-4 animate-fade-in-up">
+                    <div class="bg-slate-900 rounded-xl p-6 border border-slate-700 relative shadow-inner">
+                        <div class="absolute top-4 right-4 flex gap-2">
+                            <button class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-md text-slate-300 transition flex items-center gap-1" onclick="copyResult()">
+                                <i data-lucide="copy" class="w-3 h-3"></i> 複製
+                            </button>
+                        </div>
+                        
+                        <div class="flex items-center gap-3 mb-4 border-b border-slate-800 pb-4">
+                            <span class="bg-green-500/10 text-green-500 text-xs font-bold px-2 py-1 rounded border border-green-500/20">識別成功</span>
+                            <span class="text-slate-500 text-xs" id="result-meta">需時: 0.8秒 | 準確率: 99.8%</span>
+                        </div>
+
+                        <div class="pl-4 border-l-2 border-primary/50 py-1">
+                            <p id="result-text" class="font-medium text-slate-200 leading-relaxed text-base md:text-lg">
+                                <!-- JS will inject text here -->
+                            </p>
+                        </div>
+                        
+                        <div class="mt-6 pt-4 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4">
+                            <p class="text-slate-500 text-xs">注意：試玩版僅顯示純文字，完整版可匯出 SRT 字幕。</p>
+                            <a href="#pricing" class="bg-primary/10 hover:bg-primary/20 text-primary px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2">
+                                解鎖完整 SRT 功能 <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                            </a>
+                        </div>
+                    </div>
+                    <button onclick="resetDemo()" class="mt-6 mx-auto flex items-center gap-2 text-slate-500 hover:text-white transition text-sm">
+                        <i data-lucide="refresh-ccw" class="w-4 h-4"></i> 試玩其他場景
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Grid -->
+    <section class="py-24 container mx-auto px-6">
+        <div class="grid md:grid-cols-3 gap-8">
+            <div class="p-6 rounded-2xl bg-card border border-white/5 hover:border-primary/30 transition group">
+                <div class="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition">
+                    <i data-lucide="languages" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-2">地道港式粵語</h3>
+                <p class="text-slate-400">唔係普通話轉譯，係真正聽得明「這裏」同「呢度」、「回家」同「返屋企」分別嘅 AI。</p>
+            </div>
+            <div class="p-6 rounded-2xl bg-card border border-white/5 hover:border-primary/30 transition group">
+                <div class="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition">
+                    <i data-lucide="zap" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-2">極速本地運算</h3>
+                <p class="text-slate-400">利用你電腦嘅 GPU/CPU 加速，唔洗 upload 片上雲端，私隱度極高，速度快 10 倍。</p>
+            </div>
+            <div class="p-6 rounded-2xl bg-card border border-white/5 hover:border-primary/30 transition group">
+                <div class="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition">
+                    <i data-lucide="file-text" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-xl font-bold mb-2">支援多種格式</h3>
+                <p class="text-slate-400">一鍵輸出 SRT, ASS, TXT。直接拖入 Premiere Pro, Final Cut, Davinci Resolve 即可使用。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- NEW: Comparison Section (Savage Mode) -->
+    <section class="py-20 bg-slate-800 relative overflow-hidden">
+        <!-- Background Elements -->
+        <div class="absolute top-0 left-0 w-full h-full overflow-hidden opacity-20 pointer-events-none">
+            <div class="absolute -top-20 -left-20 w-96 h-96 bg-red-500/20 rounded-full blur-3xl"></div>
+            <div class="absolute top-1/2 right-0 w-96 h-96 bg-primary/20 rounded-full blur-3xl"></div>
+        </div>
+
+        <div class="container mx-auto px-6 relative z-10">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl md:text-5xl font-black mb-6 leading-tight">
+                    <span class="text-slate-400 line-through decoration-red-500 decoration-4">外國 AI 識別率 47%</span><br>
+                    <span class="text-white">香港人 AI <span class="text-primary">99.9% 準確</span></span>
+                </h2>
+                <p class="text-xl text-slate-300">你揀邊個？唔好再用「半桶水」嘅工具虐待自己。</p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+                
+                <!-- Competitors Card (The Pain) -->
+                <div class="bg-slate-900/80 p-8 rounded-2xl border border-red-500/30 relative">
+                    <div class="absolute -top-4 -left-4 bg-red-600 text-white px-4 py-1 rounded-lg font-bold shadow-lg transform -rotate-2">
+                        傳統 / 其他對手
+                    </div>
+                    <ul class="space-y-8 mt-4">
+                        <li class="flex gap-4 items-start opacity-70">
+                            <i data-lucide="x-circle" class="w-6 h-6 text-red-500 flex-shrink-0 mt-1"></i>
+                            <div>
+                                <h4 class="font-bold text-lg text-slate-200 mb-1">YouTube 自動字幕</h4>
+                                <p class="text-slate-400 text-sm">外國 AI 將『係咪』聽成『是咩』，將『嚟啦』聽成『來啦』... 睇到想死。</p>
+                            </div>
+                        </li>
+                        <li class="flex gap-4 items-start opacity-70">
+                            <i data-lucide="x-circle" class="w-6 h-6 text-red-500 flex-shrink-0 mt-1"></i>
+                            <div>
+                                <h4 class="font-bold text-lg text-slate-200 mb-1">大陸剪輯 App</h4>
+                                <p class="text-slate-400 text-sm">要上傳去內地伺服器，仲要過審查，隨時因爲一句話條片被下架。</p>
+                            </div>
+                        </li>
+                        <li class="flex gap-4 items-start opacity-70">
+                            <i data-lucide="x-circle" class="w-6 h-6 text-red-500 flex-shrink-0 mt-1"></i>
+                            <div>
+                                <h4 class="font-bold text-lg text-slate-200 mb-1">人手打字幕 (最痛)</h4>
+                                <p class="text-slate-400 text-sm">打 10 分鐘片 = 最少 2-3 小時。OT 到 11 點，為咗慳嗰少少錢值得咩？</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Us Card (The Solution) -->
+                <div class="bg-gradient-to-br from-primary/10 to-slate-900 p-8 rounded-2xl border-2 border-primary relative shadow-2xl shadow-primary/10">
+                    <div class="absolute -top-4 -right-4 bg-primary text-white px-4 py-1 rounded-lg font-bold shadow-lg transform rotate-2">
+                        Canto-Beats
+                    </div>
+                    <ul class="space-y-8 mt-4">
+                        <li class="flex gap-4 items-start">
+                            <div class="bg-green-500/20 p-1 rounded-full">
+                                <i data-lucide="check" class="w-4 h-4 text-green-500 flex-shrink-0"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-lg text-white mb-1">香港人專屬引擎</h4>
+                                <p class="text-slate-300 text-sm">連『食飯未』『hea 咗未』『搞亂晒』都 100% 準確，粗口直接出原句唔使打格仔。</p>
+                            </div>
+                        </li>
+                        <li class="flex gap-4 items-start">
+                            <div class="bg-green-500/20 p-1 rounded-full">
+                                <i data-lucide="check" class="w-4 h-4 text-green-500 flex-shrink-0"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-lg text-white mb-1">本地運算，0 審查</h4>
+                                <p class="text-slate-300 text-sm">完全離線運行 (Offline)，資料唔會送上雲端，絕對私隱，想講咩就講咩。</p>
+                            </div>
+                        </li>
+                        <li class="flex gap-4 items-start">
+                            <div class="bg-green-500/20 p-1 rounded-full">
+                                <i data-lucide="check" class="w-4 h-4 text-green-500 flex-shrink-0"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-lg text-white mb-1">HK$199 買斷</h4>
+                                <p class="text-slate-300 text-sm">Descript 收你 US$12/月，我哋一次過收費永久用。遲啲可能加價，早買早享受。</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Download Section -->
+    <section id="download" class="py-20 bg-slate-900">
+        <div class="container mx-auto px-6 text-center">
+            <h2 class="text-3xl font-bold mb-12">支援所有主流平台</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+                <!-- Windows -->
+                <div class="bg-card p-8 rounded-2xl border border-slate-700 hover:border-primary transition relative overflow-hidden group">
+                    <div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition"></div>
+                    <i data-lucide="monitor" class="w-12 h-12 mx-auto mb-4 text-slate-300"></i>
+                    <h3 class="text-xl font-bold">Windows</h3>
+                    <p class="text-slate-400 text-sm mb-6">Windows 10 / 11 (64-bit)</p>
+                    <button onclick="downloadAlert('win')" class="w-full bg-slate-700 hover:bg-primary text-white py-3 rounded-lg font-medium transition">
+                        下載 .exe
+                    </button>
+                </div>
+                <!-- Mac -->
+                <div class="bg-card p-8 rounded-2xl border border-slate-700 hover:border-primary transition relative overflow-hidden group">
+                    <div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition"></div>
+                    <i data-lucide="apple" class="w-12 h-12 mx-auto mb-4 text-slate-300"></i>
+                    <h3 class="text-xl font-bold">macOS</h3>
+                    <p class="text-slate-400 text-sm mb-6">Intel & Apple Silicon (M1/M2/M3)</p>
+                    <button onclick="downloadAlert('mac')" class="w-full bg-slate-700 hover:bg-primary text-white py-3 rounded-lg font-medium transition">
+                        下載 .dmg
+                    </button>
+                </div>
+                <!-- Linux -->
+                <div class="bg-card p-8 rounded-2xl border border-slate-700 hover:border-primary transition relative overflow-hidden group">
+                    <div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition"></div>
+                    <i data-lucide="terminal" class="w-12 h-12 mx-auto mb-4 text-slate-300"></i>
+                    <h3 class="text-xl font-bold">Linux</h3>
+                    <p class="text-slate-400 text-sm mb-6">Ubuntu / Debian / Arch</p>
+                    <button onclick="downloadAlert('linux')" class="w-full bg-slate-700 hover:bg-primary text-white py-3 rounded-lg font-medium transition">
+                        下載 .AppImage
+                    </button>
+                </div>
+            </div>
+            <p class="mt-8 text-slate-500 text-sm">* 免費下載安裝，需購買激活碼解鎖匯出功能。</p>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="py-24 container mx-auto px-6">
+        <div class="max-w-lg mx-auto bg-gradient-to-b from-slate-800 to-slate-900 rounded-3xl p-1 border border-slate-700 relative">
+            <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-red-500 to-orange-500 text-white px-4 py-1 rounded-full text-sm font-bold shadow-lg whitespace-nowrap">
+                免費 3 個月更新 🔥
+            </div>
+            <div class="bg-card rounded-[22px] p-8 md:p-12 text-center h-full flex flex-col">
+                <h3 class="text-2xl font-bold text-slate-300 mb-2">永久買斷版</h3>
+                <div class="flex items-baseline justify-center gap-1 my-6">
+                    <span class="text-xl text-slate-500">HK$</span>
+                    <span class="text-6xl font-black text-white tracking-tight">199</span>
+                </div>
+                
+                <ul class="text-left space-y-4 mb-8 flex-1 pl-4">
+                    <li class="flex items-center gap-3 text-slate-300">
+                        <i data-lucide="check" class="text-green-400 w-5 h-5 flex-shrink-0"></i> <span>無限生成時長</span>
+                    </li>
+                    <li class="flex items-center gap-3 text-slate-300">
+                        <i data-lucide="check" class="text-green-400 w-5 h-5 flex-shrink-0"></i> <span>匯出 SRT / ASS / TXT</span>
+                    </li>
+                    <li class="flex items-center gap-3 text-slate-300">
+                        <i data-lucide="check" class="text-green-400 w-5 h-5 flex-shrink-0"></i> <span>去除水印</span>
+                    </li>
+                    <li class="flex items-center gap-3 text-slate-300">
+                        <i data-lucide="check" class="text-green-400 w-5 h-5 flex-shrink-0"></i> <span>優先技術支援</span>
+                    </li>
+                    <li class="flex items-center gap-3 text-slate-300">
+                        <i data-lucide="check" class="text-green-400 w-5 h-5 flex-shrink-0"></i> <span>30 天退款保證</span>
+                    </li>
+                </ul>
+
+                <button onclick="startCheckout()" class="w-full bg-primary hover:bg-primary-hover text-white py-4 rounded-xl font-bold text-xl shadow-lg shadow-primary/25 transition transform hover:-translate-y-1">
+                    立即購買
+                </button>
+                <p class="mt-4 text-xs text-slate-500">
+                    支援 Visa / Master / AlipayHK / PayMe
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="py-16 bg-slate-900/50">
+        <div class="container mx-auto px-6 max-w-3xl">
+            <h2 class="text-2xl font-bold mb-8 text-center">常見問題</h2>
+            <div class="space-y-4">
+                <details class="group bg-card p-4 rounded-lg cursor-pointer border border-transparent hover:border-slate-700 open:border-primary/50">
+                    <summary class="flex justify-between items-center font-medium list-none">
+                        <span>真係可以永久使用？</span>
+                        <span class="transition group-open:rotate-180"><i data-lucide="chevron-down"></i></span>
+                    </summary>
+                    <p class="text-slate-400 mt-3 text-sm leading-relaxed">
+                        係！只要俾一次 HK$199，你就可以永久使用目前版本，並且免費獲得未來所有 2.x 版本嘅更新。冇任何隱藏月費。
+                    </p>
+                </details>
+                <details class="group bg-card p-4 rounded-lg cursor-pointer border border-transparent hover:border-slate-700 open:border-primary/50">
+                    <summary class="flex justify-between items-center font-medium list-none">
+                        <span>識別準確率有幾高？</span>
+                        <span class="transition group-open:rotate-180"><i data-lucide="chevron-down"></i></span>
+                    </summary>
+                    <p class="text-slate-400 mt-3 text-sm leading-relaxed">
+                        針對香港人嘅說話習慣訓練，對於中英夾雜（例如 "食個 Lunch 先"）、懶音（例如 "恆生銀行"）都有極高識別率。你可以用上面嘅 Demo 試下先！
+                    </p>
+                </details>
+                <details class="group bg-card p-4 rounded-lg cursor-pointer border border-transparent hover:border-slate-700 open:border-primary/50">
+                    <summary class="flex justify-between items-center font-medium list-none">
+                        <span>電腦配置要求高唔高？</span>
+                        <span class="transition group-open:rotate-180"><i data-lucide="chevron-down"></i></span>
+                    </summary>
+                    <p class="text-slate-400 mt-3 text-sm leading-relaxed">
+                        唔算高。只要係近 5 年內買嘅電腦都跑得郁。如果你用 Mac M1/M2/M3 系列，速度會非常之快。
+                    </p>
+                </details>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 py-12 text-center text-slate-500">
+        <div class="container mx-auto px-6">
+            <div class="flex items-center justify-center gap-2 mb-4 text-slate-300">
+                <img src="/app icon_002.png" alt="Canto-Beats" class="w-6 h-6">
+                <span class="font-bold text-lg">Canto-Beats</span>
+            </div>
+            <p class="mb-4">Designed & Made in Hong Kong 🇭🇰</p>
+            <div class="flex justify-center gap-6 text-sm">
+                <a href="#" class="hover:text-primary">私隱條款</a>
+                <a href="#" class="hover:text-primary">使用條款</a>
+                <a href="#" class="hover:text-primary">聯絡我們</a>
+            </div>
+            <p class="mt-8 text-xs">© 2025 粵語自動字幕生成器. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script>
+        // Initialize Icons
+        lucide.createIcons();
+
+        // UI Elements
+        const scenarioSelector = document.getElementById('scenario-selector');
+        const progressArea = document.getElementById('progress-area');
+        const resultArea = document.getElementById('result-area');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const progressPercent = document.getElementById('progress-percent');
+        const resultText = document.getElementById('result-text');
+
+        // Scenarios Data
+        const scenarios = [
+            {
+                // YouTuber Vlog (已更新為美食探店內容)
+                text: "Hello 大家好，又係我！今日帶大家嚟到尖沙咀呢間新開嘅 Cafe 試食。聽講佢哋個 All Day Breakfast 好出名，排隊都排咗成個鐘。即刻試下係咪真係咁好食，定係得個樣先！",
+                meta: "需時: 0.8秒 | 準確率: 99.8%"
+            },
+            {
+                // Course Teaching
+                text: "各位同學，今日同大家講下咩係「網絡效應」。簡單嚟講，就係一個產品越多人用，佢嘅價值就越高。譬如 WhatsApp 咁，如果身邊無人用，佢就無價值；但當個個都用，你就不得不學識用佢啦。",
+                meta: "需時: 0.7秒 | 準確率: 99.9%"
+            },
+            {
+                // Daily Conversation (Lazy)
+                text: "而家天氣咁鬼熱，真係唔想出街食飯囉。不如叫外賣算啦，你哋想食譚仔定係麥當勞呀？其實我無所謂架，最緊要係有凍飲，熱死辣辣真係搞唔掂。",
+                meta: "需時: 0.5秒 | 準確率: 99.7%"
+            }
+        ];
+
+        let currentScenarioId = 0;
+
+        function selectScenario(id) {
+            currentScenarioId = id;
+            startProcessing();
+        }
+
+        function startProcessing() {
+            scenarioSelector.classList.add('hidden');
+            progressArea.classList.remove('hidden');
+            resultArea.classList.add('hidden');
+
+            let width = 0;
+            // Slightly faster simulation for better UX
+            const interval = setInterval(() => {
+                width += Math.random() * 8; 
+                if (width > 80 && width < 90) width += 0.5;
+
+                if (width >= 100) {
+                    width = 100;
+                    clearInterval(interval);
+                    setTimeout(showResult, 400);
+                }
+
+                progressBar.style.width = width + '%';
+                progressPercent.innerText = Math.floor(width) + '%';
+                
+                if(width < 30) progressText.innerText = "正在加載模擬音頻...";
+                else if(width < 60) progressText.innerText = "AI 正在去除背景雜音...";
+                else if(width < 90) progressText.innerText = "正在轉換粵語文字...";
+                else progressText.innerText = "即將完成...";
+
+            }, 80);
+        }
+
+        function showResult() {
+            progressArea.classList.add('hidden');
+            resultArea.classList.remove('hidden');
+            
+            const data = scenarios[currentScenarioId];
+            document.getElementById('result-meta').innerText = data.meta;
+            
+            // Typewriter effect
+            resultText.innerHTML = "";
+            let i = 0;
+            const speed = 25; // Speed of typing
+            const typeInterval = setInterval(() => {
+                resultText.innerHTML += data.text.charAt(i);
+                i++;
+                if(i >= data.text.length) clearInterval(typeInterval);
+            }, speed);
+        }
+
+        function resetDemo() {
+            scenarioSelector.classList.remove('hidden');
+            resultArea.classList.add('hidden');
+            progressBar.style.width = '0%';
+        }
+
+        function copyResult() {
+            const text = resultText.innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('文字已複製！');
+            });
+        }
+
+        function downloadAlert(os) {
+            alert(`正在開始下載 ${os.toUpperCase()} 版本...\n\n(這只是一個演示頁面，實際下載鏈接會在此處觸發)`);
+        }
+
+        function startCheckout() {
+            alert("正在轉跳至 Stripe 付款頁面...\n\n(這只是一個演示頁面，實際會調用 Stripe API)");
+        }
+    </script>
+</body>
+</html>
