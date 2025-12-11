@@ -38,7 +38,7 @@ def get_nuitka_command():
         "--output-filename=Canto-beats.exe",
         
         # === Optimization ===
-        "--lto=yes",                       # Link-time optimization
+        # "--lto=yes",                       # Removed: Too slow
         "--jobs=4",                        # Parallel compilation
         
         # === Windows Specific ===

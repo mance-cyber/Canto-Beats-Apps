@@ -33,7 +33,7 @@ def get_nuitka_command():
         f"--macos-app-icon={project_dir / 'public' / 'app icon_002.png'}",
         
         # === Optimization ===
-        "--lto=yes",
+        # "--lto=yes",  # Removed: Too slow
         "--jobs=4",
         
         # === macOS Specific ===
