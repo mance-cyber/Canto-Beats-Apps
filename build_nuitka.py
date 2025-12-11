@@ -12,6 +12,12 @@ import subprocess
 import sys
 import os
 from pathlib import Path
+import codecs
+
+# Ensure UTF-8 output for GitHub Actions
+if sys.platform == 'win32':
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
 
 
 def get_nuitka_command():
@@ -42,7 +48,7 @@ def get_nuitka_command():
         "--windows-product-name=Canto-beats",
         "--windows-file-version=1.0.0.0",
         "--windows-product-version=1.0.0.0",
-        "--windows-file-description=粵語字幕神器",
+        "--windows-file-description=Cantonese Subtitle Tool",
         
         # === Code Protection ===
         "--include-data-dir=src=src",
