@@ -46,7 +46,7 @@ class AppConfig:
     # Transcription Settings
     default_language: str = "yue"  # "yue" for Cantonese (ISO 639-3 code, supported by faster-whisper)
     enable_word_timestamps: bool = True
-    beam_size: int = 20  # Maxed out for 99.9% accuracy (slower but most precise)
+    beam_size: int = 5  # Default value for faster transcription speed
     
     # Processing settings
     confidence_threshold: float = 0.7

@@ -1,20 +1,157 @@
 """
-Logging utilities for Canto-beats
+Logging utilities for Canto-beats with optional encryption
 """
 
 import logging
 import sys
+import os
+import hashlib
+import base64
 from pathlib import Path
 from datetime import datetime
+from typing import Optional
 
 
-def setup_logger(name: str = "canto-beats", log_dir: Path = None) -> logging.Logger:
+def get_machine_id() -> str:
+    """Get a unique machine identifier for key generation."""
+    try:
+        if sys.platform == 'win32':
+            import subprocess
+            result = subprocess.run(
+                ['wmic', 'csproduct', 'get', 'uuid'],
+                capture_output=True, text=True, timeout=5
+            )
+            uuid = result.stdout.strip().split('\n')[-1].strip()
+            if uuid and uuid != 'UUID':
+                return uuid
+    except Exception:
+        pass
+    
+    # Fallback: use username + hostname
+    import socket
+    return f"{os.getlogin()}@{socket.gethostname()}"
+
+
+def generate_encryption_key() -> bytes:
+    """Generate a Fernet key from machine-specific data."""
+    machine_id = get_machine_id()
+    salt = "Canto-beats-log-encryption-2024"
+    
+    # Create a 32-byte key using SHA256
+    key_material = f"{machine_id}{salt}".encode()
+    key_hash = hashlib.sha256(key_material).digest()
+    
+    # Fernet requires URL-safe base64 encoded 32-byte key
+    return base64.urlsafe_b64encode(key_hash)
+
+
+class EncryptedFileHandler(logging.Handler):
+    """
+    A logging handler that encrypts log entries using Fernet (AES).
+    Each line is encrypted separately for streaming writes.
+    """
+    
+    def __init__(self, filename: str, key: Optional[bytes] = None):
+        super().__init__()
+        self.filename = filename
+        
+        try:
+            from cryptography.fernet import Fernet
+            self.key = key or generate_encryption_key()
+            self.fernet = Fernet(self.key)
+            self.encryption_enabled = True
+        except ImportError:
+            self.encryption_enabled = False
+            logging.warning("cryptography not installed, logs will not be encrypted")
+        
+        # Open file in append binary mode
+        self.file = open(filename, 'ab')
+    
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            
+            if self.encryption_enabled:
+                # Encrypt the log message
+                encrypted = self.fernet.encrypt(msg.encode('utf-8'))
+                self.file.write(encrypted + b'\n')
+            else:
+                self.file.write(msg.encode('utf-8') + b'\n')
+            
+            self.file.flush()
+        except Exception:
+            self.handleError(record)
+    
+    def close(self):
+        if hasattr(self, 'file') and self.file:
+            self.file.close()
+        super().close()
+
+
+def decrypt_log_file(encrypted_file: str, output_file: str = None) -> str:
+    """
+    Decrypt an encrypted log file.
+    
+    Args:
+        encrypted_file: Path to encrypted log file
+        output_file: Optional path to write decrypted content
+        
+    Returns:
+        Decrypted log content as string
+    """
+    try:
+        from cryptography.fernet import Fernet
+    except ImportError:
+        raise RuntimeError("cryptography package required for decryption")
+    
+    key = generate_encryption_key()
+    fernet = Fernet(key)
+    
+    decrypted_lines = []
+    with open(encrypted_file, 'rb') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                try:
+                    decrypted = fernet.decrypt(line).decode('utf-8')
+                    decrypted_lines.append(decrypted)
+                except Exception as e:
+                    decrypted_lines.append(f"[DECRYPT ERROR: {e}]")
+    
+    content = '\n'.join(decrypted_lines)
+    
+    if output_file:
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+    
+    return content
+
+
+def get_log_directory() -> Path:
+    """
+    Get the log directory in user's AppData folder.
+    This ensures logs are always saved even in installed environments.
+    """
+    # Use AppData\Local\Canto-beats\logs on Windows
+    if sys.platform == 'win32':
+        app_data = os.environ.get('LOCALAPPDATA', os.path.expanduser('~'))
+        log_dir = Path(app_data) / 'Canto-beats' / 'logs'
+    else:
+        # For Mac/Linux, use ~/.canto-beats/logs
+        log_dir = Path.home() / '.canto-beats' / 'logs'
+    
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir
+
+
+def setup_logger(name: str = "canto-beats", log_dir: Path = None, encrypt: bool = True) -> logging.Logger:
     """
     Setup application logger
     
     Args:
         name: Logger name
-        log_dir: Directory to save log files (optional)
+        log_dir: Directory to save log files (optional, defaults to AppData)
+        encrypt: Whether to encrypt log files (default: True)
     
     Returns:
         Configured logger instance
@@ -44,16 +181,59 @@ def setup_logger(name: str = "canto-beats", log_dir: Path = None) -> logging.Log
     console_handler.setFormatter(simple_formatter)
     logger.addHandler(console_handler)
     
-    # File handler (DEBUG and above) - if log directory provided
-    if log_dir:
+    # File handler - ALWAYS enabled now
+    # Use provided log_dir or default to AppData
+    if log_dir is None:
+        log_dir = get_log_directory()
+    else:
         log_dir = Path(log_dir)
         log_dir.mkdir(parents=True, exist_ok=True)
-        
-        log_file = log_dir / f"canto-beats_{datetime.now().strftime('%Y%m%d')}.log"
-        
-        file_handler = logging.FileHandler(log_file, encoding='utf-8')
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(detailed_formatter)
-        logger.addHandler(file_handler)
+    
+    date_str = datetime.now().strftime('%Y%m%d')
+    
+    try:
+        if encrypt:
+            # Use encrypted file handler
+            log_file = log_dir / f"canto-beats_{date_str}.log.enc"
+            file_handler = EncryptedFileHandler(str(log_file))
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.setFormatter(detailed_formatter)
+            logger.addHandler(file_handler)
+            logger.info(f"Encrypted log file: {log_file}")
+        else:
+            # Use standard file handler (plain text)
+            log_file = log_dir / f"canto-beats_{date_str}.log"
+            file_handler = logging.FileHandler(log_file, encoding='utf-8')
+            file_handler.setLevel(logging.DEBUG)
+            file_handler.setFormatter(detailed_formatter)
+            logger.addHandler(file_handler)
+            logger.info(f"Log file: {log_file}")
+    except Exception as e:
+        logger.warning(f"Could not create log file: {e}")
     
     return logger
+
+
+# CLI utility for decrypting logs
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Decrypt Canto-beats log files")
+    parser.add_argument("input", help="Encrypted log file (.log.enc)")
+    parser.add_argument("-o", "--output", help="Output file (optional)")
+    
+    args = parser.parse_args()
+    
+    if not os.path.exists(args.input):
+        print(f"Error: File not found: {args.input}")
+        sys.exit(1)
+    
+    try:
+        content = decrypt_log_file(args.input, args.output)
+        if args.output:
+            print(f"Decrypted to: {args.output}")
+        else:
+            print(content)
+    except Exception as e:
+        print(f"Decryption failed: {e}")
+        sys.exit(1)

@@ -94,6 +94,10 @@ class VADProcessor(ModelManager):
              self.VADIterator,
              self.collect_chunks) = utils
             
+            # Override read_audio to use soundfile instead of torchaudio
+            # This avoids torchcodec dependency issues on Windows Standalone
+            self.read_audio = self._read_audio_soundfile
+            
             # Move model to device
             self.model = self.model.to(self.device)
             self.is_loaded = True
@@ -102,6 +106,42 @@ class VADProcessor(ModelManager):
             
         except Exception as e:
             logger.error(f"Failed to load VAD model: {e}")
+            raise
+    
+    def _read_audio_soundfile(self, path: str, sampling_rate: int = 16000):
+        """
+        Read audio using soundfile instead of torchaudio.
+        This is a drop-in replacement for Silero's read_audio utility.
+        
+        Args:
+            path: Path to audio file
+            sampling_rate: Target sampling rate (default 16000 for VAD)
+            
+        Returns:
+            torch.Tensor of audio samples
+        """
+        try:
+            import soundfile as sf
+            import librosa
+            
+            # Read audio file
+            audio, sr = sf.read(path)
+            
+            # Convert to mono if stereo
+            if len(audio.shape) > 1:
+                audio = audio.mean(axis=1)
+            
+            # Resample if needed
+            if sr != sampling_rate:
+                audio = librosa.resample(audio, orig_sr=sr, target_sr=sampling_rate)
+            
+            # Convert to torch tensor (float32)
+            wav = torch.from_numpy(audio).float()
+            
+            return wav
+            
+        except Exception as e:
+            logger.error(f"Failed to read audio with soundfile: {e}")
             raise
     
     def unload_model(self):

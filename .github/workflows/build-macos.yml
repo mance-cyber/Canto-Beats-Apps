@@ -29,11 +29,26 @@ jobs:
       
       - name: Install Python dependencies
         run: |
-          # 排除 Windows 專用的套件
-          grep -v "llama-cpp-python\|bitsandbytes" requirements.txt > requirements-macos.txt || true
+          # Exclude Windows-only and incompatible packages
+          # llama-cpp-python: Requires special CUDA build
+          # bitsandbytes: Not supported on macOS
+          grep -v -E "llama-cpp-python|bitsandbytes" requirements.txt > requirements-macos.txt || true
+          
+          echo "=== requirements-macos.txt ==="
+          cat requirements-macos.txt
+          echo "=============================
+          
           pip install --upgrade pip
+          
+          # Install PyTorch for macOS (MPS support for Apple Silicon)
+          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          
+          # Install other dependencies
           pip install -r requirements-macos.txt
           pip install pyinstaller
+          
+          echo "=== Installed packages ==="
+          pip list
       
       - name: Build with PyInstaller
         run: python build_pyinstaller_macos.py

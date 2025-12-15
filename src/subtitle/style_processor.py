@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 from utils.logger import setup_logger
-from models.translation_model import TranslationModel
+# NOTE: TranslationModel is NOT imported here to avoid triggering
+# full transformers loading at startup (causes torchcodec issues in PyInstaller).
+# Import it lazily in _translate_with_ai() when needed.
 from core.config import Config
 
 # OpenCC for simplified to traditional conversion
@@ -96,7 +98,8 @@ class StyleProcessor:
         
         # Batch AI processing (5 sentences at a time for speed)
         style = options.get('style', 'spoken')
-        use_ai = options.get('ai_correction', False)
+        # AI 校正：書面語和半書面自動啟用 AI（無需額外勾選）
+        use_ai = style in ('semi', 'written')
         
         ai_converted_texts = {}  # index -> converted text
         if use_ai and style in ('semi', 'written'):
@@ -166,6 +169,11 @@ class StyleProcessor:
         if not text:
             return text
         
+        # 首先清理所有類型嘅括號（Whisper 經常產生）
+        brackets_to_remove = '()（）﹙﹚[]【】「」'
+        for bracket in brackets_to_remove:
+            text = text.replace(bracket, '')
+        
         # Define punctuation to remove (Chinese and English)
         trailing_punct = '。，！？；：、.!?,;:'
         
@@ -177,7 +185,7 @@ class StyleProcessor:
 
     def _batch_ai_convert(self, segments: List[Dict], style: str, progress_callback=None) -> Dict[int, str]:
         """
-        Batch convert segments using AI (5 at a time).
+        Batch convert segments using AI (Transformers Qwen2.5-3B).
         Returns dict of {index: converted_text}.
         """
         result = {}
@@ -189,6 +197,16 @@ class StyleProcessor:
                 from ui.download_dialog import check_and_download_model
                 from core.hardware_detector import HardwareDetector
                 from models.qwen_llm import QwenLLM
+                import gc
+                import torch
+                
+                # Clear VRAM before loading model
+                logger.info("Clearing VRAM before loading Qwen model...")
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    torch.cuda.synchronize()
+                    logger.info("VRAM cleared")
                 
                 detector = HardwareDetector()
                 profile = detector.detect()
@@ -205,14 +223,12 @@ class StyleProcessor:
                 
                 self.llm_processor = QwenLLM(self.config, profile)
                 self.llm_processor.load_models()
-                logger.info("Qwen2.5-7B loaded for batch processing")
+                logger.info("Qwen2.5-3B loaded for batch processing")
             except Exception as e:
                 logger.warning(f"LLM init failed: {e}")
                 return result
         
         # Process in batches
-        from prompts.cantonese_prompts import COLLOQUIAL_TO_WRITTEN_PROMPT
-        
         total_batches = (len(segments) + batch_size - 1) // batch_size
         
         for batch_idx, batch_start in enumerate(range(0, len(segments), batch_size)):
@@ -221,60 +237,39 @@ class StyleProcessor:
             
             # Report progress
             if progress_callback:
-                progress = int((batch_idx / total_batches) * 100)
-                progress_callback(batch_idx, total_batches, f"正在處理批次 {batch_idx + 1}/{total_batches}...")
+                progress_callback(batch_idx, total_batches, f"AI 轉換 {batch_idx + 1}/{total_batches}...")
             
             # Combine texts with markers
             combined = "\n".join([f"{i+1}. {t}" for i, t in enumerate(batch_texts)])
-            prompt = f"""# Role
-你是一位專精香港粵語的語言轉換專家。
+            
+            # Professional prompt for thorough conversion (simplified - no English/number rules)
+            prompt = f"""你是一位專業中文編輯與字幕轉寫師。你的任務是把「粵語口語字幕」徹底轉譯成「自然流暢的書面中文」。
 
-# Task
-將以下粵語口語**完全轉換**成標準普通話書面語。每句需要獨立輸出並保持編號格式。
+【核心目標】
+- 完全書面化：把口語、粵語語氣詞、口頭禪、潮語改成正式書面表達。
+- 不改意思：保留原句資訊、語氣強弱，但用書面語呈現。
+- 適合做字幕：句子要簡潔、易讀、自然。
 
-# Rules
-1. **務必轉換所有粵語詞彙**，不是只添加標點符號
-2. **絕對不要翻譯或修改任何英文**，英文必須原樣保留
-3. 使用以下對照表進行轉換：
-   - 係 → 是
-   - 喺 → 在
-   - 佢 → 他/她
-   - 嘅 → 的
-   - 唔 → 不
-   - 冇 → 沒有
-   - 咗 → 了
-   - 嚟 → 來
-   - 而家 → 現在
-   - 成日 → 總是/經常
-   - 返到 → 回到
-   - 俾 → 給
-   - 話 → 說
-   - 諗 → 想
-   - 睇 → 看
-   - 搵 → 找
-   - 去咗 → 去了
-   - 嗰個 → 那個
-   - 呢個 → 這個
-   - 點解 → 為什麼
-   - 乜嘢 → 什麼
-4. 保持原意，使句子通順自然
-5. 每句獨立處理，保持編號格式
+【轉譯規則】
+1. 移除/改寫粵語語氣詞與填充詞：如「喎、啦、囉、咩、㗎、吓、呀、喇、啫」等。
+2. 粗口處理：改成較文明的同等語氣（例如「好撚煩」→「非常煩人」）。
+3. 句末標點要書面：疑問用「？」、感嘆用「！」，其餘用「。」或「，」。
+4. 不要添加新資訊、不要解釋、不要評論。
+5. 只輸出轉譯後文字，保持編號格式。
+6. 保守轉換：如果唔確定，保留原詞，唔好猜測或創造新詞。
+7. 英文保留：所有英文（人名、品牌、術語）直接保留，唔好翻譯。
 
-# Example
-輸入：
-1. 你成日話你做生意 你係老闆
-2. 佢琴日返到嚟
-3. 我用 iPhone 打電話
+【常見轉換】
+係→是、喺→在、唔→不、冇→沒有、嘅→的、咗→了、嚟→來、佢→他/她
+好彩→幸運、頭先→剛才、琴日→昨天、聽日→明天、今日→今天、而家→現在
+個鐘→小時、蚊→元、即係→就是、點解→為什麼、乜嘢→什麼、邊度→哪裡
 
-輸出：
-1. 你總是說你做生意，你是老闆
-2. 他昨天回來了
-3. 我用 iPhone 打電話
+【風格】繁體中文書面語，清晰自然。嚴格度：最高，凡是口語化表達一律改成書面語。
 
-# 原文
+【輸入】
 {combined}
 
-# 書面語輸出（保持編號）"""
+【輸出】（只輸出結果，保持編號）"""
             
             try:
                 response = self.llm_processor._generate(
@@ -282,8 +277,13 @@ class StyleProcessor:
                     self.llm_processor._model_a, 
                     self.llm_processor._tokenizer_a,
                     max_new_tokens=1024,
-                    temperature=0.05  # Low temperature for consistent conversion
+                    temperature=0  # Zero temp for fully deterministic output
                 )
+                
+                # === DEBUG: Log raw AI response ===
+                logger.info(f"=== RAW AI RESPONSE (Batch {batch_idx + 1}) ===")
+                logger.info(response[:500] if len(response) > 500 else response)
+                logger.info("=== END RAW RESPONSE ===")
                 
                 # Parse numbered response
                 for line in response.strip().split('\n'):
@@ -294,7 +294,26 @@ class StyleProcessor:
                             try:
                                 num = int(parts[0]) - 1
                                 text = parts[1].strip()
-                                if 0 <= num < len(batch_texts):
+                                
+                                # === 嚴格清理 AI 輸出 ===
+                                # 1. 如果有箭頭符號，只取箭頭後面嘅內容
+                                if '→' in text:
+                                    text = text.split('→')[-1].strip()
+                                if '->' in text:
+                                    text = text.split('->')[-1].strip()
+                                
+                                # 2. 移除所有類型括號
+                                for bracket in '()（）﹙﹚[]【】「」':
+                                    text = text.replace(bracket, '')
+                                
+                                # 3. 清除異常尾部字符
+                                while text and text[-1] in ')）」】是呢啦':
+                                    text = text[:-1].strip()
+                                
+                                # 4. 去除多餘空白
+                                text = ' '.join(text.split())
+                                
+                                if 0 <= num < len(batch_texts) and text:
                                     result[batch_start + num] = text
                             except ValueError:
                                 pass
@@ -308,127 +327,47 @@ class StyleProcessor:
         if progress_callback:
             progress_callback(total_batches, total_batches, "AI 轉換完成")
         
-        return result
-        """
-        Batch convert segments using AI (5 at a time).
-        Returns dict of {index: converted_text}.
-        """
-        result = {}
-        batch_size = 5
+        # Post-process with dictionary to fix AI missed conversions
+        post_fix_map = {
+            "蚊": "元",
+            "個鐘": "小時",
+            "即係": "就是",
+            "喺": "在",
+            "嘅": "的",
+            "咗": "了",
+            "冇": "沒有",
+            "唔": "不",
+            "係": "是",
+            "佢": "他",
+            "嚟": "來",
+            "搵": "找",  # 新增：搵→找
+            "好彩": "幸運",
+            "頭先": "剛才",
+            "琴日": "昨天",
+            "聽日": "明天",
+            "今日": "今天",
+            "而家": "現在",
+            "點解": "為什麼",
+            "乜嘢": "什麼",
+            "邊度": "哪裡",
+            "呢啲": "這些",
+            "唔係": "不是",
+            # 常見錯誤修正
+            "視顧": "覺得",
+            "告運作": "就運作",
+            "嘗 ": "係 ",
+            "嘗": "係",
+            "績優": "很多",
+        }
         
-        # Initialize LLM if needed
-        if self.llm_processor is None:
-            try:
-                from ui.download_dialog import check_and_download_model
-                from core.hardware_detector import HardwareDetector
-                from models.qwen_llm import QwenLLM
-                
-                detector = HardwareDetector()
-                profile = detector.detect()
-                
-                model_ready = check_and_download_model(
-                    profile.llm_a_model,
-                    profile.llm_a_quantization,
-                    parent=None
-                )
-                
-                if not model_ready:
-                    logger.warning("Model not ready, using dictionary")
-                    return result
-                
-                self.llm_processor = QwenLLM(self.config, profile)
-                self.llm_processor.load_models()
-                logger.info("Qwen2.5-7B loaded for batch processing")
-            except Exception as e:
-                logger.warning(f"LLM init failed: {e}")
-                return result
+        for idx in result:
+            text = result[idx]
+            for canto, written in post_fix_map.items():
+                if canto in text:
+                    text = text.replace(canto, written)
+            result[idx] = text
         
-        # Process in batches
-        from prompts.cantonese_prompts import COLLOQUIAL_TO_WRITTEN_PROMPT
-        
-        for batch_start in range(0, len(segments), batch_size):
-            batch_end = min(batch_start + batch_size, len(segments))
-            batch_texts = [segments[i].get('text', '') for i in range(batch_start, batch_end)]
-            
-            # Combine texts with markers
-            combined = "\n".join([f"{i+1}. {t}" for i, t in enumerate(batch_texts)])
-            prompt = f"""# Role
-你是一位專精香港粵語的語言轉換專家。
-
-# Task
-將以下粵語口語**完全轉換**成標準普通話書面語。每句需要獨立輸出並保持編號格式。
-
-# Rules
-1. **務必轉換所有粵語詞彙**，不是只添加標點符號
-2. **絕對不要翻譯或修改任何英文**，英文必須原樣保留
-3. 使用以下對照表進行轉換：
-   - 係 → 是
-   - 喺 → 在
-   - 佢 → 他/她
-   - 嘅 → 的
-   - 唔 → 不
-   - 冇 → 沒有
-   - 咗 → 了
-   - 嚟 → 來
-   - 而家 → 現在
-   - 成日 → 總是/經常
-   - 返到 → 回到
-   - 俾 → 給
-   - 話 → 說
-   - 諗 → 想
-   - 睇 → 看
-   - 搵 → 找
-   - 去咗 → 去了
-   - 嗰個 → 那個
-   - 呢個 → 這個
-   - 點解 → 為什麼
-   - 乜嘢 → 什麼
-4. 保持原意，使句子通順自然
-5. 每句獨立處理，保持編號格式
-
-# Example
-輸入：
-1. 你成日話你做生意 你係老闆
-2. 佢琴日返到嚟
-3. 我用 iPhone 打電話
-
-輸出：
-1. 你總是說你做生意，你是老闆
-2. 他昨天回來了
-3. 我用 iPhone 打電話
-
-# 原文
-{combined}
-
-# 書面語輸出（保持編號）"""
-            
-            try:
-                response = self.llm_processor._generate(
-                    prompt, 
-                    self.llm_processor._model_a, 
-                    self.llm_processor._tokenizer_a,
-                    max_new_tokens=1024,
-                    temperature=0.05  # Low temperature for consistent conversion
-                )
-                
-                # Parse numbered response
-                for line in response.strip().split('\n'):
-                    line = line.strip()
-                    if line and line[0].isdigit():
-                        parts = line.split('.', 1)
-                        if len(parts) == 2:
-                            try:
-                                num = int(parts[0]) - 1
-                                text = parts[1].strip()
-                                if 0 <= num < len(batch_texts):
-                                    result[batch_start + num] = text
-                            except ValueError:
-                                pass
-                
-                logger.info(f"Batch {batch_start//batch_size + 1}: processed {len(batch_texts)} segments")
-                
-            except Exception as e:
-                logger.warning(f"Batch processing failed: {e}")
+        logger.info(f"Post-processed {len(result)} segments with dictionary cleanup")
         
         return result
     
@@ -465,7 +404,7 @@ class StyleProcessor:
             # Keep original Cantonese
             return text
         
-        # AI conversion with Qwen2.5-7B (better quality than 1.5B)
+        # AI conversion with Qwen2.5-3B (better quality than 1.5B)
         if use_ai and style in ('semi', 'written'):
             try:
                 if self.llm_processor is None:
@@ -488,11 +427,11 @@ class StyleProcessor:
                         # Fall through to dictionary conversion
                     else:
                         # Load the model
-                        logger.info("Initializing Qwen2.5-7B for AI style conversion...")
+                        logger.info("Initializing Qwen2.5-3B for AI style conversion...")
                         from models.qwen_llm import QwenLLM
                         self.llm_processor = QwenLLM(self.config, profile)
                         self.llm_processor.load_models()
-                        logger.info("Qwen2.5-7B loaded successfully")
+                        logger.info("Qwen2.5-3B loaded successfully")
                 
                 # Use specialized prompt for colloquial-to-written conversion
                 from prompts.cantonese_prompts import COLLOQUIAL_TO_WRITTEN_PROMPT
@@ -686,71 +625,80 @@ class StyleProcessor:
         
         logger.info(f"Found {len(matches)} English segments in: '{text}'")
         
-        # Process matches from end to start to preserve string indices
-        result = text
-        translated_cache = {}
+        # Build translation map first (avoid modifying while iterating)
+        translations = {}  # {english_text: translation}
         
-        for match in reversed(matches):
+        for match in matches:
             english_text = match.group(0).strip()
             
-            if not english_text:
+            if not english_text or english_text in translations:
                 continue
             
-            # Check global cache first
             cache_key = english_text.lower()
-            if cache_key in self.translation_cache:
-                translation = self.translation_cache[cache_key]
-                logger.debug(f"Using global cache: '{english_text}' -> '{translation}'")
-            # Check local cache
-            elif cache_key in translated_cache:
-                translation = translated_cache[cache_key]
-                logger.debug(f"Using local cache: '{english_text}' -> '{translation}'")
-            else:
-                translation = None
-                
-                # First, check dictionary for exact match (including phrases)
-                if cache_key in self.english_map:
-                    translation = self.english_map[cache_key]
-                    logger.info(f"Dictionary exact: '{english_text}' -> '{translation}'")
-                else:
-                    # Try word-by-word translation for multi-word phrases
-                    words = english_text.split()
-                    if len(words) > 1:
-                        translated_words = []
-                        all_found = True
-                        for word in words:
-                            word_clean = word.lower().strip("-'.,!?")
-                            if word_clean in self.english_map:
-                                translated_words.append(self.english_map[word_clean])
-                            else:
-                                all_found = False
-                                break
-                        
-                        if all_found and translated_words:
-                            translation = ''.join(translated_words)
-                            logger.info(f"Dictionary word-by-word: '{english_text}' -> '{translation}'")
-                    
-                    
-                    # If still no translation, use AI translation
-                    if not translation:
-                        logger.info(f"Not in dictionary, using AI: '{english_text}'")
-                        translation = self._translate_with_ai(english_text)
-                        # If AI also fails, keep original
-                        if not translation or translation == english_text:
-                            translation = english_text
-                            logger.warning(f"AI translation failed, keeping: '{english_text}'")
-                
-                # Cache result (both local and global)
-                translated_cache[cache_key] = translation
-                self.translation_cache[cache_key] = translation
             
-            # Replace in text
-            start, end = match.span()
-            result = result[:start] + translation + result[end:]
-            logger.debug(f"Replaced [{start}:{end}]: '{english_text}' -> '{translation}'")
+            # Check global cache first
+            if cache_key in self.translation_cache:
+                translations[english_text] = self.translation_cache[cache_key]
+                logger.debug(f"Using cache: '{english_text}' -> '{translations[english_text]}'")
+                continue
+            
+            translation = None
+            
+            # First, check dictionary for exact match
+            if cache_key in self.english_map:
+                translation = self.english_map[cache_key]
+                logger.info(f"Dictionary exact: '{english_text}' -> '{translation}'")
+            else:
+                # Try word-by-word translation for multi-word phrases
+                words = english_text.split()
+                if len(words) > 1:
+                    translated_words = []
+                    all_found = True
+                    for word in words:
+                        word_clean = word.lower().strip("-'.,!?")
+                        if word_clean in self.english_map:
+                            translated_words.append(self.english_map[word_clean])
+                        else:
+                            all_found = False
+                            break
+                    
+                    if all_found and translated_words:
+                        translation = ''.join(translated_words)
+                        logger.info(f"Dictionary word-by-word: '{english_text}' -> '{translation}'")
+                
+                # If still no translation, use AI translation
+                if not translation:
+                    logger.info(f"Not in dictionary, using AI: '{english_text}'")
+                    translation = self._translate_with_ai(english_text)
+                    
+                    # Validate AI result - check for repetition/corruption
+                    if translation:
+                        # If translation contains repeated original text, it's corrupted
+                        if english_text.lower() in translation.lower() and translation != english_text:
+                            # Extract just the new part
+                            translation = translation.replace(english_text, '').strip()
+                            if not translation:
+                                translation = english_text
+                                logger.warning(f"AI returned corrupted result, keeping: '{english_text}'")
+                    
+                    # If AI also fails, keep original
+                    if not translation or translation == english_text:
+                        translation = english_text
+                        logger.warning(f"AI translation failed, keeping: '{english_text}'")
+            
+            translations[english_text] = translation
+            self.translation_cache[cache_key] = translation
+        
+        # Now replace all occurrences
+        result = text
+        for english_text, translation in translations.items():
+            if english_text != translation:
+                result = result.replace(english_text, translation)
+                logger.debug(f"Replaced: '{english_text}' -> '{translation}'")
         
         if result != text:
             logger.info(f"Final: '{text}' -> '{result}'")
+        return result
         return result
 
     def _should_use_ai_translation(self, text: str) -> bool:
@@ -779,6 +727,8 @@ class StyleProcessor:
         try:
             if not self.translation_model:
                 logger.info("Initializing Translation Model...")
+                # Lazy import to avoid triggering transformers at startup
+                from models.translation_model import TranslationModel
                 self.translation_model = TranslationModel(self.config)
             
             result = self.translation_model.translate(text)

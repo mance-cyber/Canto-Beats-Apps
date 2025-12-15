@@ -3,6 +3,7 @@ Audio preprocessing utilities for AI models.
 """
 
 import os
+import sys
 import numpy as np
 from pathlib import Path
 from typing import Union, Optional, Tuple, List
@@ -12,6 +13,40 @@ from utils.logger import setup_logger
 
 
 logger = setup_logger()
+
+# Setup FFmpeg path for packaged application
+# FFmpeg is bundled with the application in the install directory
+def _setup_ffmpeg_path():
+    """Add FFmpeg to PATH if found in install directory."""
+    possible_dirs = []
+    
+    # 1. Installed location: C:\Program Files\Canto-beats
+    install_dir = Path(__file__).parent.parent.parent.parent
+    possible_dirs.append(install_dir)
+    
+    # 2. Development: canto-beats root
+    project_root = Path(__file__).parent.parent.parent
+    possible_dirs.append(project_root)
+    
+    # 3. CWD
+    possible_dirs.append(Path.cwd())
+    
+    # 4. Executable directory (for frozen apps)
+    if getattr(sys, 'frozen', False):
+        possible_dirs.append(Path(sys.executable).parent)
+    
+    for dir_path in possible_dirs:
+        ffmpeg_path = dir_path / "ffmpeg.exe"
+        if ffmpeg_path.exists():
+            dir_str = str(dir_path)
+            if dir_str.lower() not in os.environ["PATH"].lower():
+                os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
+                logger.info(f"Added FFmpeg directory to PATH: {dir_str}")
+            return True
+    return False
+
+_setup_ffmpeg_path()
+
 
 
 class AudioPreprocessor:
@@ -130,9 +165,13 @@ class AudioPreprocessor:
             import ffmpeg
             import subprocess
             
-            # Check if ffmpeg is available
+            # Check if ffmpeg is available (hide console window on Windows)
+            import sys
+            creationflags = 0
+            if sys.platform == 'win32':
+                creationflags = subprocess.CREATE_NO_WINDOW
             try:
-                subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
+                subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True, creationflags=creationflags)
             except FileNotFoundError:
                 error_msg = (
                     "FFmpeg executable not found in system PATH.\n"

@@ -201,3 +201,88 @@ Traceback (most recent call last):
     print(f"✅ App icon loaded: {icon_path}")
     ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 UnicodeEncodeError: 'gbk' codec can't encode character '\u2705' in position 0: illegal multibyte sequence
+
+Crash at: 2025-12-13 17:09:19.901236
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 270, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 184, in main
+    import torch
+  File "C:\Users\ktphi\miniconda3\Lib\site-packages\torch\__init__.py", line 2204, in <module>
+    from torch import (
+    ...<30 lines>...
+    )
+  File "C:\Users\ktphi\miniconda3\Lib\site-packages\torch\nested\__init__.py", line 21, in <module>
+    from ._internal.nested_tensor import _rebuild_njt, NestedTensor as _NestedTensor
+  File "C:\Users\ktphi\miniconda3\Lib\site-packages\torch\nested\_internal\nested_tensor.py", line 7, in <module>
+    from torch.nested._internal.nested_int import NestedIntNode
+  File "C:\Users\ktphi\miniconda3\Lib\site-packages\torch\nested\_internal\nested_int.py", line 4, in <module>
+    from torch.fx.experimental._constant_symnode import ConstantIntNode
+  File "C:\Users\ktphi\miniconda3\Lib\site-packages\torch\fx\__init__.py", line 97, in <module>
+    from torch.fx.interpreter import Interpreter, Transformer
+  File "C:\Users\ktphi\miniconda3\Lib\site-packages\torch\fx\interpreter.py", line 8, in <module>
+    from torch._logging import trace_structured
+  File "C:\Users\ktphi\miniconda3\Lib\site-packages\torch\_logging\__init__.py", line 7, in <module>
+    import torch._logging._registrations
+  File "C:\Users\ktphi\miniconda3\Lib\site-packages\torch\_logging\_registrations.py", line 2, in <module>
+    from ._internal import register_artifact, register_log
+  File "C:\Users\ktphi\miniconda3\Lib\site-packages\torch\_logging\_internal.py", line 24, in <module>
+    from torch._guards import CompileId
+  File "C:\Users\ktphi\miniconda3\Lib\site-packages\torch\_guards.py", line 11, in <module>
+    import unittest.mock
+  File "C:\Users\ktphi\miniconda3\Lib\unittest\mock.py", line 27, in <module>
+    import asyncio
+  File "C:\Users\ktphi\miniconda3\Lib\asyncio\__init__.py", line 43, in <module>
+    from .windows_events import *
+  File "C:\Users\ktphi\miniconda3\Lib\asyncio\windows_events.py", line 26, in <module>
+    from . import windows_utils
+  File "C:\Users\ktphi\miniconda3\Lib\asyncio\windows_utils.py", line 125, in <module>
+    class Popen(subprocess.Popen):
+    ...<47 lines>...
+                    os.close(stderr_wfd)
+TypeError: function() argument 'code' must be code, not str
+
+Crash at: 2025-12-14 02:50:39.115005
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 255, in <module>
+    main()
+    ~~~~^^
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\main.py", line 239, in main
+    from ui.main_window import MainWindow
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\main_window.py", line 1809
+    url = "https://cantobeats.com # TODO: Replace with actual website URL
+          ^
+SyntaxError: unterminated string literal (detected at line 1809)
+
+Crash at: 2025-12-15 02:41:04.092551
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\src\ui\video_player.py", line 538, in _update_position
+    current_time = self.mpv_player.time_pos or 0
+                   ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ktphi\miniconda3\Lib\site-packages\mpv.py", line 2116, in __getattr__
+    return self._get_property(_py_to_mpv(name), lazy_decoder)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\ktphi\miniconda3\Lib\site-packages\mpv.py", line 2087, in _get_property
+    self.check_core_alive()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\ktphi\miniconda3\Lib\site-packages\mpv.py", line 999, in check_core_alive
+    raise ShutdownError('libmpv core has been shutdown')
+mpv.ShutdownError: libmpv core has been shutdown
+
+Crash at: 2025-12-15 17:35:32.624684
+Traceback (most recent call last):
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\dist\Canto-beats-Standalone\app\main.py", line 255, in <module>
+    main()
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\dist\Canto-beats-Standalone\app\main.py", line 239, in main
+    from ui.main_window import MainWindow
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\dist\Canto-beats-Standalone\app\src\ui\main_window.py", line 21, in <module>
+    from ui.transcription_worker_v2 import TranscribeWorkerV2
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\dist\Canto-beats-Standalone\app\src\ui\transcription_worker_v2.py", line 15, in <module>
+    from pipeline.subtitle_pipeline_v2 import SubtitlePipelineV2
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\dist\Canto-beats-Standalone\app\src\pipeline\subtitle_pipeline_v2.py", line 15, in <module>
+    from models.qwen_llm import QwenLLM
+  File "C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\dist\Canto-beats-Standalone\app\src\models\qwen_llm.py", line 207
+    except Exception as e:
+    ^^^^^^
+SyntaxError: invalid syntax

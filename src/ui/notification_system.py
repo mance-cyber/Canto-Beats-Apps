@@ -117,14 +117,14 @@ class NotificationManager(QObject):
         default_notifications = [
             {
                 "id": "welcome_v1",
-                "title": "🎉 歡迎使用 Canto-beats!",
+                "title": "歡迎使用 Canto-beats!",
                 "message": "感謝你選擇 Canto-beats 粵語字幕神器！如有任何問題，歡迎聯絡我們。",
                 "date": "2024-12-05",
                 "type": "info"
             },
             {
                 "id": "tips_v1",
-                "title": "💡 使用小貼士",
+                "title": "使用小貼士",
                 "message": "拖入影片後點擊「開始 AI 轉寫」即可自動生成字幕。可以在右側面板調整字幕風格。",
                 "date": "2024-12-05",
                 "type": "tip"
@@ -411,7 +411,7 @@ class NotificationDialog(QDialog):
             vbox.setSpacing(10)
             vbox.setAlignment(Qt.AlignCenter)
             
-            icon_label = QLabel("🔕")
+            icon_label = QLabel("--")
             icon_label.setStyleSheet("font-size: 48px;")
             icon_label.setAlignment(Qt.AlignCenter)
             
@@ -469,13 +469,13 @@ class NotificationDialog(QDialog):
         
         # Type icon mapping
         type_icons = {
-            "info": "ℹ️",
-            "tip": "💡",
-            "update": "🚀",
-            "warning": "⚠️",
-            "important": "🔥"
+            "info": "[i]",
+            "tip": "[*]",
+            "update": "",
+            "warning": "[!]",
+            "important": "[!!]"
         }
-        icon_text = type_icons.get(notification.get('type', 'info'), "ℹ️")
+        icon_text = type_icons.get(notification.get('type', 'info'), "[i]")
         icon = QLabel(icon_text)
         icon.setStyleSheet("font-size: 14px; background: transparent; border: none;")
         header.addWidget(icon)

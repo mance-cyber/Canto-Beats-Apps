@@ -662,7 +662,7 @@ class SubtitleTrack(QWidget):
         layout.setSpacing(16)
         
         # Title with icon
-        title_label = QLabel("✏️ 編輯字幕")
+        title_label = QLabel("✏ 編輯字幕")
         title_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #22d3ee;")
         layout.addWidget(title_label)
         

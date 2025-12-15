@@ -21,6 +21,7 @@ import os
 
 from ui.timeline_config import Colors, Dimensions, ZOOM_LEVELS, DEFAULT_ZOOM_INDEX
 from ui.edit_history import EditHistory
+from core.path_setup import get_icon_path
 
 class TimeRuler(QWidget):
     """
@@ -589,7 +590,7 @@ class TimelineEditor(QWidget):
         
         def create_icon_button(icon_name, tooltip="", enabled=True):
             btn = QToolButton()
-            icon_path = f"src/resources/icons/{icon_name}.svg"
+            icon_path = get_icon_path(icon_name)
             if os.path.exists(icon_path):
                 btn.setIcon(QIcon(icon_path))
                 btn.setIconSize(QSize(16, 16))
@@ -635,8 +636,9 @@ class TimelineEditor(QWidget):
         # Right group: Add & Zoom controls
         # Add subtitle button
         self.add_btn = QPushButton(" 添加字幕")
-        if os.path.exists("src/resources/icons/plus.svg"):
-            self.add_btn.setIcon(QIcon("src/resources/icons/plus.svg"))
+        plus_icon_path = get_icon_path("plus")
+        if os.path.exists(plus_icon_path):
+            self.add_btn.setIcon(QIcon(plus_icon_path))
             self.add_btn.setIconSize(QSize(16, 16))
         self.add_btn.setObjectName("toolbarButton")
         self.add_btn.setToolTip("在當前位置添加新字幕")
@@ -768,17 +770,21 @@ class TimelineEditor(QWidget):
         """Load video and extract thumbnails with automatic GPU detection"""
         try:
             from utils.video_utils import VideoThumbnailExtractor
-            print(f"Extracting thumbnails from {video_path}...")
+            from utils.logger import setup_logger
+            logger = setup_logger()
+            logger.info(f"Extracting thumbnails from {video_path}...")
             # Pass None to use_gpu to trigger automatic detection
             thumbnails = VideoThumbnailExtractor.extract_thumbnails(
                 video_path, 
                 interval=5,
                 use_gpu=None  # Auto-detect GPU
             )
-            print(f"Extracted {len(thumbnails)} thumbnails")
+            logger.info(f"Extracted {len(thumbnails)} thumbnails")
             self.video_track.set_thumbnails(thumbnails)
         except Exception as e:
-            print(f"Error loading video thumbnails: {e}")
+            from utils.logger import setup_logger
+            logger = setup_logger()
+            logger.error(f"Error loading video thumbnails: {e}", exc_info=True)
     
     def set_segments(self, segments: List[Dict]):
         """Set subtitle segments to display on timeline"""

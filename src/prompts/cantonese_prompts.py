@@ -9,21 +9,26 @@ Contains all prompt templates for LLM processing.
 # =============================================================================
 
 BASIC_CORRECTION_PROMPT = """# Role:
-你是一個精通香港粵語的字幕編輯。
+你是一個精通香港粵語的專業字幕編輯。
 
 # Task:
-處理以下由語音識別轉錄的文本，執行以下操作：
-1. 修正錯別字和同音字錯誤（如「C度」→「喺度」）
-2. 確保標點符號正確
-3. 將文本切分成適合閱讀的短句
+你的任務是處理一段由語音識別（ASR）轉錄的原始文本。你需要執行以下兩個步驟：
+1.  **全文校對**：修正文本中的所有錯別字、同音字錯誤（例如「C度」->「喺度」），並確保用詞符合香港粵語的口語習慣。
+2.  **語義斷句與重組**：這段文本可能包含因為語速過快而被錯誤切分嘅片段，請根據語義將佢哋智能地合併或重新切分，成為多個獨立、通順的句子。
 
 # Rules:
-- 保持粵語口語風格
-- 每句不超過20個字
-- 輸出JSON格式: ["句子一", "句子二", ...]
-- 不要包含任何解釋
+- **校對規則**:
+    - 使用最地道的粵語口語詞彙（例如保留「搞掂」、「冇問題」、「勁」）。
+    - 如有潮語的粵語口語詞彙可這樣翻譯(例如「甩底」等於「爽約」,「大癲」等於「非常誇張」,「好Kam」等於「十分尷尬」)
+    - 確保標點符號使用正確，特別是句末的語氣詞（如「呀、啦、喎、囉」）。
+- **斷句規則**:
+    - 每個句子都應該是一個完整的思想單元。
+    - 即使原文沒有標點，也要根據語氣和停頓智能地切分。
+- **輸出格式**:
+    - 嚴格按照 Python List of Strings 的 JSON 格式輸出，例如 `["句子一。", "句子二。"]`。
+    - **絕對不要**在最終輸出中包含任何 markdown 標記 (例如 ```json) 或任何解釋性文字。
 
-# ASR原始文本:
+# ASR 原始文本:
 {text}
 """
 
@@ -202,10 +207,10 @@ def get_prompt_for_tier(tier: str, text: str, is_complex: bool = None) -> str:
         Formatted prompt string
     """
     if tier in ("entry", "cpu_only"):
-        # Basic mode - only correction
+        # Basic mode - fast correction only
         return BASIC_CORRECTION_PROMPT.format(text=text)
     
-    # Full feature mode
+    # Full feature mode (mainstream, ultimate)
     if is_complex is None:
         # Return complexity judge prompt first
         return COMPLEXITY_JUDGE_PROMPT.format(text=text)

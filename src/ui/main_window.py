@@ -309,9 +309,9 @@ class MainWindow(QMainWindow):
         license_mgr = LicenseManager(self.config)
         
         if license_mgr.is_licensed():
-            web_action = QAction("🌐 前往官網...", self)
+            web_action = QAction("前往官網...", self)
         else:
-            web_action = QAction("💳 立即購買...", self)
+            web_action = QAction("立即購買...", self)
         
         web_action.triggered.connect(self._open_purchase_or_website)
         menu.addAction(web_action)
@@ -457,11 +457,11 @@ class MainWindow(QMainWindow):
         header_layout = QHBoxLayout()
         
         icon_map = {
-            "info": "ℹ️",
-            "warning": "⚠️",
-            "error": "❌"
+            "info": "[i]",
+            "warning": "[!]",
+            "error": "[X]"
         }
-        icon_emoji = icon_map.get(icon_type, "ℹ️")
+        icon_emoji = icon_map.get(icon_type, "[i]")
         
         icon_label = QLabel(icon_emoji)
         icon_label.setStyleSheet("font-size: 32px;")
@@ -536,7 +536,7 @@ class MainWindow(QMainWindow):
         progress = QProgressDialog(self)
         progress.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
         progress.setWindowTitle("風格處理")
-        progress.setLabelText("🔄 正在進行 AI 轉譯中... (0%)")
+        progress.setLabelText("正在進行 AI 轉譯中... (0%)")
         progress.setRange(0, 0)  # Indeterminate
         progress.setWindowModality(Qt.WindowModal)
         progress.setCancelButton(None)
@@ -556,7 +556,7 @@ class MainWindow(QMainWindow):
         """Test download dialog."""
         from ui.download_dialog import ModelDownloadDialog
         dialog = ModelDownloadDialog(
-            model_id="Qwen/Qwen2.5-7B-Instruct",
+            model_id="Qwen/Qwen2.5-3B-Instruct",
             quantization="4bit",
             parent=self
         )
@@ -588,13 +588,23 @@ class MainWindow(QMainWindow):
         logo_box.setAlignment(Qt.AlignCenter)
         
         # Use the new app icon
-        app_icon_path = "public/app icon_002.png"
+        from core.path_setup import get_resource_path
+        app_icon_path = get_resource_path("resources/app_icon.png")
+        # Try alternate paths
+        if not os.path.exists(app_icon_path):
+            app_icon_path = get_resource_path("../public/app icon_002.png")
+        if not os.path.exists(app_icon_path):
+            # Try CWD paths
+            for path in ["public/app icon_002.png", "app/public/app icon_002.png"]:
+                if os.path.exists(path):
+                    app_icon_path = path
+                    break
         if os.path.exists(app_icon_path):
             icon = QIcon(app_icon_path)
             logo_box.setPixmap(icon.pixmap(28, 28))
         else:
             # Fallback
-            logo_box.setText("🎵")
+            logo_box.setText("CB")
             
         brand_layout.addWidget(logo_box)
         
@@ -619,13 +629,14 @@ class MainWindow(QMainWindow):
         
         def create_util_btn(icon_name, tooltip):
             btn = QToolButton()
-            icon_path = f"src/resources/icons/{icon_name}.svg"
+            from core.path_setup import get_icon_path
+            icon_path = get_icon_path(icon_name)
             if os.path.exists(icon_path):
                 btn.setIcon(QIcon(icon_path))
                 btn.setIconSize(QSize(20, 20))
             else:
                 # Use emoji fallback
-                icons = {"search": "🔍", "bell": "🔔", "settings": "⚙️"}
+                icons = {"search": "S", "bell": "N", "settings": "G"}
                 btn.setText(icons.get(icon_name, icon_name))
             btn.setToolTip(tooltip)
             btn.setCursor(Qt.PointingHandCursor)
@@ -658,10 +669,10 @@ class MainWindow(QMainWindow):
         self.purchase_btn.setMinimumHeight(32)
         
         if license_mgr.is_licensed():
-            self.purchase_btn.setText("🌐 前往官網")
+            self.purchase_btn.setText("前往官網")
             self.purchase_btn.setToolTip("訪問官方網站")
         else:
-            self.purchase_btn.setText("💳 立即購買")
+            self.purchase_btn.setText("立即購買")
             self.purchase_btn.setToolTip("購買授權以解鎖完整功能")
         
         self.purchase_btn.setStyleSheet("""
@@ -775,6 +786,8 @@ class MainWindow(QMainWindow):
         self.transcribe_btn.clicked.connect(self._start_transcription)
         layout.addWidget(self.transcribe_btn)
         
+        # AI Correction feature removed - LLM disabled by default
+        
         # Style Control Panel
         layout.addWidget(QLabel("風格控制:"))
         self.style_panel = StyleControlPanel()
@@ -852,46 +865,73 @@ class MainWindow(QMainWindow):
     def _load_video(self, file_path: str):
         """Load and prepare video"""
         self.current_video_path = file_path
+        
+        # Clear ALL old data when loading a new video
+        self.original_segments = []
+        self.current_segments = []
+        self.processed_cache = {}
+        self.timeline.subtitle_track.set_segments([])
+        self.timeline.subtitle_track.update()
+        self.logger.info("[OK] Cleared all segment data and cache")
+        
+        # Clear pipeline audio cache to avoid using stale audio
+        import tempfile
+        import shutil
+        cache_dir = Path(tempfile.gettempdir()) / "canto_beats_v2"
+        if cache_dir.exists():
+            try:
+                shutil.rmtree(cache_dir)
+                self.logger.info(f"[OK] Cleared pipeline cache: {cache_dir}")
+            except Exception as e:
+                self.logger.warning(f"Could not clear cache: {e}")
+        
         self.video_player.load_video(file_path)
         self.timeline.load_video(file_path)  # Extract and load thumbnails
         self.status_bar.showMessage(f"已載入: {Path(file_path).name}")
-        self.logger.info(f"📂 已開啟檔案: {file_path}")
+        self.logger.info(f"[OK] Opened file: {file_path}")
         
         # Auto-prompt removed by user request
         # User will manually click the "Start Transcription" button
             
     def _start_transcription(self):
         """Start AI transcription V2."""
+        self.logger.info("[DEBUG] _start_transcription START")
         
         # Prevent multiple simultaneous transcriptions
+        self.logger.info(f"[DEBUG] worker check: {hasattr(self, 'worker')}, {getattr(self, 'worker', None)}")
         if hasattr(self, 'worker') and self.worker:
-            self.logger.warning("⚠️ 轉寫已在進行中，請先取消或等待完成")
-            self.status_bar.showMessage("⚠️ 轉寫已在進行中", 3000)
+            self.logger.warning("[!] Transcription already in progress")
+            self.status_bar.showMessage("[!] Transcription in progress", 3000)
             return
         
+        self.logger.info(f"[DEBUG] video_path: {self.current_video_path}")
         if not self.current_video_path:
+            self.logger.info("[DEBUG] No video - showing warning")
             self._show_frameless_message(
-                "請先開啟影片",
-                "請先開啟影片檔案再開始 AI 轉寫",
+                "Please open video",
+                "Please open a video file first",
                 "warning"
             )
             return
         
         # Check if models are cached - show first-time download warning
+        self.logger.info("[DEBUG] Checking model cache...")
         is_first_time = not self.config.is_model_cached("all")
+        self.logger.info(f"[DEBUG] is_first_time: {is_first_time}")
         
         if is_first_time:
             # Show first-time download warning
+            self.logger.info("[DEBUG] Showing first-time dialog...")
             from PySide6.QtWidgets import QMessageBox
             msg = QMessageBox(self)
-            msg.setWindowTitle("首次使用提示")
+            msg.setWindowTitle("First Time Setup")
             msg.setIcon(QMessageBox.Information)
-            msg.setText("🔽 首次使用需要下載 AI 模型")
+            msg.setText("First time setup - AI model download required")
             msg.setInformativeText(
-                "首次轉譯需要下載約 3-5 GB 的 AI 模型，\n"
-                "下載時間視乎網絡速度（約 5-15 分鐘）。\n\n"
-                "📦 下載後可離線使用，之後無需再次下載！\n\n"
-                "是否繼續？"
+                "First transcription requires downloading AI models (3-5 GB).\n"
+                "Download time depends on network speed (about 5-15 minutes).\n\n"
+                "After download, offline use is available!\n\n"
+                "Continue?"
             )
             msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             msg.setDefaultButton(QMessageBox.Yes)
@@ -922,10 +962,13 @@ class MainWindow(QMainWindow):
             if msg.exec() != QMessageBox.Yes:
                 return
         
-        self.logger.info("🚀 開始 AI 轉寫...")
+        self.logger.info("[START] Beginning AI transcription...")
         
         # Disable button during processing
         self.transcribe_btn.setEnabled(False)
+        
+        # AI Correction disabled - LLM feature removed
+        enable_llm = False
         
         # Create worker with first-time flag
         from ui.transcription_worker_v2 import TranscribeWorkerV2
@@ -933,7 +976,7 @@ class MainWindow(QMainWindow):
             self.config,
             self.current_video_path,
             force_cpu=False,
-            enable_llm=True,  # Enable LLM for better results
+            enable_llm=enable_llm,  # Always disabled
             is_first_time=is_first_time  # Pass flag for different progress messages
         )
         self.worker.progress.connect(self._on_transcription_progress)
@@ -945,7 +988,7 @@ class MainWindow(QMainWindow):
         from ui.animated_progress_dialog import AnimatedProgressDialog
         self.progress_dialog = AnimatedProgressDialog(self)
         if is_first_time:
-            self.progress_dialog.setLabelText("🔽 首次使用，正在下載 AI 模型...")
+            self.progress_dialog.setLabelText("First time setup - downloading AI models...")
         else:
             self.progress_dialog.setLabelText("正在初始化 AI 模型...")
         self.progress_dialog.canceled.connect(self._on_transcription_canceled)
@@ -955,7 +998,7 @@ class MainWindow(QMainWindow):
         
     def _on_transcription_canceled(self):
         """Handle transcription cancellation"""
-        self.logger.info("🛑 用戶取消轉寫")
+        self.logger.info("[CANCEL] User cancelled transcription")
         
         # Cancel worker
         if self.worker:
@@ -1009,7 +1052,7 @@ class MainWindow(QMainWindow):
                 
             # Log to log_view
             if hasattr(self, 'log_view'):
-                self.log_view.append("✅ 轉寫完成!")
+                self.log_view.append("[OK] Transcription complete!")
                 self.log_view.append(f"語言: {result.get('language', 'unknown')}")
                 tier = result.get('hardware_tier', 'unknown')
                 self.log_view.append(f"硬件層級: {tier}")
@@ -1063,7 +1106,7 @@ class MainWindow(QMainWindow):
             # Show completion in log_view instead of QMessageBox to avoid thread issues
             num_segs = len(segments)
             if hasattr(self, 'log_view'):
-                self.log_view.append(f"📊 字幕片段: {num_segs}")
+                self.log_view.append(f"字幕片段: {num_segs}")
                 self.log_view.append("─" * 20)
             
             # Update status bar
@@ -1076,7 +1119,7 @@ class MainWindow(QMainWindow):
             traceback.print_exc()
             self.logger.error(f"Error in transcription callback: {e}", exc_info=True)
             if hasattr(self, 'log_view'):
-                self.log_view.append(f"❌ 顯示結果時出錯: {str(e)}")
+                self.log_view.append(f"[X] Error displaying results: {str(e)}")
         
     def _on_transcription_error(self, error_msg: str):
         """Handle transcription error"""
@@ -1145,19 +1188,19 @@ class MainWindow(QMainWindow):
         
         # Check cache first
         if cache_key in self.processed_cache:
-            self.logger.info("📦 使用緩存的處理結果")
+            self.logger.info("[CACHE] Using cached processing result")
             self.current_segments = self.processed_cache[cache_key]
             self.timeline.set_segments(self.current_segments)
             self._update_video_subtitles()
-            self.logger.info("✅ 風格處理完成（來自緩存）")
+            self.logger.info("[OK] Style processing complete (from cache)")
             return
             
-        self.logger.info("🎨 正在應用風格處理...")
+        self.logger.info("[STYLE] Applying style processing...")
         
-        # Check if AI processing is needed
+        # Check if AI processing is needed (書面語和半書面自動啟用)
         style = self.current_style_options.get('style', 'spoken')
-        use_ai = self.current_style_options.get('ai_correction', False)
-        needs_ai = use_ai and style in ('semi', 'written')
+        # 與 style_processor.py 同步：書面語和半書面自動啟用 AI
+        needs_ai = style in ('semi', 'written')
         
         # Show progress dialog if AI processing is needed
         progress_dialog = None
@@ -1165,7 +1208,7 @@ class MainWindow(QMainWindow):
             progress_dialog = QProgressDialog(self)
             progress_dialog.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
             progress_dialog.setWindowTitle("風格處理")
-            progress_dialog.setLabelText("🔄 正在進行 AI 轉譯中... (0%)")
+            progress_dialog.setLabelText("正在進行 AI 轉譯中... (0%)")
             progress_dialog.setRange(0, 100)  # Determinate progress 0-100%
             progress_dialog.setValue(0)
             progress_dialog.setWindowModality(Qt.WindowModal)
@@ -1181,7 +1224,7 @@ class MainWindow(QMainWindow):
             if progress_dialog:
                 percentage = int((current / total) * 100) if total > 0 else 0
                 progress_dialog.setValue(percentage)
-                progress_dialog.setLabelText(f"🔄 {message} ({percentage}%)")
+                progress_dialog.setLabelText(f"{message} ({percentage}%)")
                 QApplication.processEvents()
         
         try:
@@ -1204,11 +1247,11 @@ class MainWindow(QMainWindow):
             # Update video subtitles
             self._update_video_subtitles()
             
-            self.logger.info("✅ 風格處理完成")
+            self.logger.info("[OK] Style processing complete")
             
         except Exception as e:
             self.logger.error(f"Style processing failed: {e}")
-            self.logger.error(f"❌ 風格處理失敗: {str(e)}")
+            self.logger.error(f"[X] Style processing failed: {str(e)}")
         finally:
             # Close progress dialog
             if progress_dialog:
@@ -1249,7 +1292,7 @@ class MainWindow(QMainWindow):
                 "請前往我們的官方網站購買授權以解鎖完整功能 ✨",
                 "error"
             )
-            self.logger.warning("❌ 導出失敗: 未授權")
+            self.logger.warning("[X] Export failed: Unauthorized")
             return
         
         if not self.current_segments:
@@ -1297,7 +1340,7 @@ class MainWindow(QMainWindow):
         
         if success:
             self.status_bar.showMessage(f"已導出至: {Path(file_path).name}", 5000)
-            self.logger.info(f"✅ 導出成功: {file_path}")
+            self.logger.info(f"[OK] Export success: {file_path}")
             QMessageBox.information(
                 self,
                 "導出成功",
@@ -1342,7 +1385,7 @@ class MainWindow(QMainWindow):
         
         # Test with Qwen2.5-7B model
         dialog = ModelDownloadDialog(
-            "Qwen/Qwen2.5-7B-Instruct", 
+            "Qwen/Qwen2.5-3B-Instruct", 
             quantization="4bit",
             parent=self
         )
@@ -1422,7 +1465,7 @@ class MainWindow(QMainWindow):
         header_layout.setSpacing(0)
         
         # Title
-        title = QLabel("🔍 搜索字幕")
+        title = QLabel("搜索字幕")
         title.setStyleSheet("font-size: 18px; font-weight: bold; margin-bottom: 8px; background: transparent;")
         header_layout.addWidget(title)
         header_layout.addStretch()
@@ -1491,13 +1534,13 @@ class MainWindow(QMainWindow):
                         found.append(i)
                 
                 if found:
-                    status_label.setText(f"✅ 找到 {len(found)} 個匹配")
+                    status_label.setText(f"[OK] Found {len(found)} matches")
                     status_label.setStyleSheet("color: #22c55e;")
                 else:
-                    status_label.setText(f"❌ 未找到: {text}")
+                    status_label.setText(f"[X] Not found: {text}")
                     status_label.setStyleSheet("color: #ef4444;")
             else:
-                status_label.setText("⚠️ 請先轉寫字幕")
+                status_label.setText("[!] Please transcribe first")
                 status_label.setStyleSheet("color: #f59e0b;")
         
         def on_item_clicked(item):
@@ -1648,7 +1691,7 @@ OpenCC 轉換: 已啟用
         update_layout = QVBoxLayout(update_frame)
         update_layout.setSpacing(8)
         
-        update_title = QLabel("🔄 軟體更新")
+        update_title = QLabel("軟體更新")
         update_title.setStyleSheet("font-weight: bold; font-size: 14px; color: #22d3ee;")
         update_layout.addWidget(update_title)
         
@@ -1721,7 +1764,7 @@ OpenCC 轉換: 已啟用
                 msg = QMessageBox(parent_dialog or self)
                 msg.setWindowTitle("發現新版本")
                 msg.setIcon(QMessageBox.Information)
-                msg.setText(f"🎉 新版本 v{update_info.version} 可用！")
+                msg.setText(f"新版本 v{update_info.version} 可用！")
                 msg.setInformativeText(
                     f"發布日期: {update_info.release_date}\n\n"
                     f"更新內容:\n{update_info.changelog}\n\n"
@@ -1787,8 +1830,8 @@ OpenCC 轉換: 已啟用
         license_mgr = LicenseManager(self.config)
         dialog = LicenseDialog(license_mgr, self)
         if dialog.exec() == LicenseDialog.Accepted:
-            self.status_bar.showMessage("✅ 授權啟用成功！", 5000)
-            self.logger.info("✅ 授權啟用成功")
+            self.status_bar.showMessage("[OK] License activated!", 5000)
+            self.logger.info("[OK] License activated successfully")
 
     def _open_purchase_or_website(self):
         """Open purchase page or website based on license status."""
@@ -1799,12 +1842,12 @@ OpenCC 轉換: 已啟用
         
         if license_mgr.is_licensed():
             # Open official website for licensed users
-            url = "https://yourwebsite.com"  # TODO: Replace with actual website URL
-            self.logger.info(f"🌐 前往官網: {url}")
+            url = "https://cantobeats.com" # TODO: Replace with actual website URL
+            self.logger.info(f"[WEB] Opening website: {url}")
         else:
             # Open purchase page for unlicensed users
-            url = "https://yourwebsite.com/purchase"  # TODO: Replace with actual purchase page URL
-            self.logger.info(f"💳 開啟購買頁面: {url}")
+            url = "https://buy.stripe.com/7sY28j6nTahud3Mfxa4Vy01"
+            self.logger.info(f"[BUY] Opening purchase page: {url}")
         
         try:
             webbrowser.open(url)
@@ -1849,35 +1892,35 @@ OpenCC 轉換: 已啟用
         """)
         
         # Model cache status
-        action_cache = menu.addAction("📦 檢查模型緩存狀態")
+        action_cache = menu.addAction("Check model cache status")
         action_cache.triggered.connect(self._debug_check_cache)
         
         # GPU status
-        action_gpu = menu.addAction("🎮 顯示 GPU 狀態")
+        action_gpu = menu.addAction("顯示 GPU 狀態")
         action_gpu.triggered.connect(self._debug_show_gpu_status)
         
         menu.addSeparator()
         
         # Clear model cache
-        action_clear = menu.addAction("🗑️ 清除模型緩存")
+        action_clear = menu.addAction("Clear model cache")
         action_clear.triggered.connect(self._debug_clear_cache)
         
         # Simulate first-time download
-        action_simulate = menu.addAction("🔽 模擬首次下載提示")
+        action_simulate = menu.addAction("Simulate first download prompt")
         action_simulate.triggered.connect(self._debug_simulate_first_time)
         
         # Simulate first-time download progress
-        action_simulate_progress = menu.addAction("⏬ 模擬首次下載進度")
+        action_simulate_progress = menu.addAction("模擬首次下載進度")
         action_simulate_progress.triggered.connect(self._debug_simulate_first_time_progress)
         
         menu.addSeparator()
         
         # Test progress dialog
-        action_progress = menu.addAction("⏳ 測試進度對話框")
+        action_progress = menu.addAction("測試進度對話框")
         action_progress.triggered.connect(self._test_progress_dialog)
         
         # Test download dialog
-        action_download = menu.addAction("📥 測試下載對話框")
+        action_download = menu.addAction("測試下載對話框")
         action_download.triggered.connect(self._test_download_dialog)
         
         # Show menu at button position
@@ -1889,9 +1932,9 @@ OpenCC 轉換: 已啟用
         llm_cached = self.config.is_model_cached("llm")
         
         status = (
-            f"📦 模型緩存狀態\n\n"
-            f"Whisper 語音模型: {'✅ 已緩存' if whisper_cached else '❌ 未下載'}\n"
-            f"Qwen LLM 校正模型: {'✅ 已緩存' if llm_cached else '❌ 未下載'}\n\n"
+            f"Model Cache Status\n\n"
+            f"Whisper ASR: {'Cached' if whisper_cached else 'Not Downloaded'}\n"
+            f"Qwen LLM: {'Cached' if llm_cached else 'Not Downloaded'}\n\n"
             f"緩存目錄: {self.config.get('models_dir')}"
         )
         
@@ -1908,7 +1951,7 @@ OpenCC 轉換: 已啟用
             used_memory = total_memory - free_memory
             
             status = (
-                f"🎮 GPU 狀態\n\n"
+                f"GPU 狀態\n\n"
                 f"GPU: {gpu_name}\n"
                 f"VRAM 總量: {total_memory:.1f} GB\n"
                 f"VRAM 已用: {used_memory:.1f} GB\n"
@@ -1962,11 +2005,11 @@ OpenCC 轉換: 已啟用
         msg = QMessageBox(self)
         msg.setWindowTitle("首次使用提示")
         msg.setIcon(QMessageBox.Information)
-        msg.setText("🔽 首次使用需要下載 AI 模型")
+        msg.setText("First time setup - AI model download required")
         msg.setInformativeText(
-            "首次轉譯需要下載約 3-5 GB 的 AI 模型，\n"
-            "下載時間視乎網絡速度（約 5-15 分鐘）。\n\n"
-            "📦 下載後可離線使用，之後無需再次下載！\n\n"
+            "First transcription requires ~3-5 GB AI models.\n"
+            "Download time: about 5-15 minutes.\n\n"
+            "After download, offline use is available!\n\n"
             "是否繼續？"
         )
         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
@@ -2005,17 +2048,17 @@ OpenCC 轉換: 已啟用
         
         # Simulate first-time download progress stages
         stages = [
-            (5, "🔽 首次下載 AI 模型中，請稍候（約 5-10 分鐘）..."),
-            (10, "🔽 首次下載 AI 模型中，請稍候（約 5-10 分鐘）..."),
-            (15, "🔽 首次下載 AI 模型中，請稍候（約 5-10 分鐘）..."),
+            (5, "首次下載 AI 模型中，請稍候（約 5-10 分鐘）..."),
+            (10, "首次下載 AI 模型中，請稍候（約 5-10 分鐘）..."),
+            (15, "首次下載 AI 模型中，請稍候（約 5-10 分鐘）..."),
             (20, "正在提取音頻..."),
             (25, "正在提取音頻..."),
             (35, "正在生成字幕..."),
             (50, "正在生成字幕..."),
             (70, "正在生成字幕..."),
             (75, "正在生成字幕..."),
-            (80, "🔽 首次下載 LLM 模型中，請稍候（約 3-5 分鐘）..."),
-            (82, "🔽 首次下載 LLM 模型中，請稍候（約 3-5 分鐘）..."),
+            (80, "首次下載 LLM 模型中，請稍候（約 3-5 分鐘）..."),
+            (82, "首次下載 LLM 模型中，請稍候（約 3-5 分鐘）..."),
             (85, "正在 AI 校正..."),
             (90, "正在 AI 校正..."),
             (95, "正在 AI 校正..."),

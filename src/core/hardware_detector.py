@@ -76,19 +76,19 @@ class HardwareDetector:
         PerformanceTier.ULTIMATE: {
             "asr_model": "large-v3",
             "asr_compute_type": "float16",
-            "llm_a_model": "Qwen/Qwen2.5-3B-Instruct",
-            "llm_a_quantization": "4bit",
-            "llm_b_model": "Qwen/Qwen2.5-14B-Instruct",
-            "llm_b_quantization": "4bit",
-            "llm_b_enabled": False,  # Disabled for now
+            "llm_a_model": "Qwen/Qwen2.5-7B-Instruct",  # 7B model - good balance
+            "llm_a_quantization": "fp16",  # Full precision with 16GB+ VRAM
+            "llm_b_model": "",
+            "llm_b_quantization": None,
+            "llm_b_enabled": False,
             "formal_translation_enabled": True,
             "bilingual_output_enabled": True,
         },
         PerformanceTier.MAINSTREAM: {
             "asr_model": "large-v3",
             "asr_compute_type": "int8",
-            "llm_a_model": "Qwen/Qwen2.5-3B-Instruct",
-            "llm_a_quantization": "4bit",
+            "llm_a_model": "Qwen/Qwen2.5-7B-Instruct",  # 7B model - good balance
+            "llm_a_quantization": "int8",  # INT8 for 10-16GB VRAM
             "llm_b_model": "",
             "llm_b_quantization": None,
             "llm_b_enabled": False,
@@ -98,8 +98,8 @@ class HardwareDetector:
         PerformanceTier.ENTRY: {
             "asr_model": "large-v3",
             "asr_compute_type": "int8",
-            "llm_a_model": "Qwen/Qwen2.5-3B-Instruct",
-            "llm_a_quantization": "4bit",
+            "llm_a_model": "Qwen/Qwen2.5-3B-Instruct",  # 3B model - faster and lighter
+            "llm_a_quantization": "4bit",  # 4-bit for 6-10GB VRAM (your RTX 3070 Ti)
             "llm_b_model": "",
             "llm_b_quantization": None,
             "llm_b_enabled": False,
@@ -109,7 +109,7 @@ class HardwareDetector:
         PerformanceTier.CPU_ONLY: {
             "asr_model": "distil-medium.en",  # Smaller model for CPU
             "asr_compute_type": "float32",
-            "llm_a_model": "Qwen/Qwen2-0.5B-Instruct",
+            "llm_a_model": "Qwen/Qwen2.5-3B-Instruct",  # Keep 3B for CPU
             "llm_a_quantization": None,  # Full precision on CPU
             "llm_b_model": "",
             "llm_b_quantization": None,
@@ -140,7 +140,7 @@ class HardwareDetector:
         if force_cpu:
             device = "cpu"
             vram_gb = 0.0
-            logger.info("🖥️ 強制使用CPU模式")
+            logger.info("Forced CPU mode")
         
         tier = self._determine_tier(vram_gb, device)
         profile = self._create_profile(tier, device, vram_gb)
@@ -158,7 +158,7 @@ class HardwareDetector:
             Tuple of (device, vram_in_gb)
         """
         if not torch.cuda.is_available():
-            logger.info("🖥️ CUDA不可用，將使用CPU模式")
+            logger.info("CUDA not available, using CPU mode")
             return "cpu", 0.0
         
         try:
@@ -170,8 +170,8 @@ class HardwareDetector:
             vram_gb = vram_bytes / (1024 ** 3)
             
             gpu_name = props.name
-            logger.info(f"🎮 檢測到GPU: {gpu_name}")
-            logger.info(f"💾 VRAM容量: {vram_gb:.2f} GB")
+            logger.info(f"GPU detected: {gpu_name}")
+            logger.info(f"VRAM capacity: {vram_gb:.2f} GB")
             
             return "cuda", vram_gb
             
@@ -218,17 +218,17 @@ class HardwareDetector:
     def _log_profile(self, profile: PerformanceProfile):
         """Log the selected performance profile."""
         logger.info("=" * 50)
-        logger.info(f"🚀 性能套餐: {profile.description}")
-        logger.info(f"   設備: {profile.device.upper()}")
+        logger.info(f"Performance Profile: {profile.description}")
+        logger.info(f"   Device: {profile.device.upper()}")
         logger.info(f"   VRAM: {profile.vram_gb:.2f} GB")
-        logger.info(f"   ASR模型: {profile.asr_model} ({profile.asr_compute_type})")
+        logger.info(f"   ASR Model: {profile.asr_model} ({profile.asr_compute_type})")
         logger.info(f"   LLM-A: {profile.llm_a_model} ({profile.llm_a_quantization or 'full'})")
         if profile.llm_b_enabled:
             logger.info(f"   LLM-B: {profile.llm_b_model} ({profile.llm_b_quantization})")
         else:
-            logger.info("   LLM-B: 禁用")
-        logger.info(f"   書面語翻譯: {'已啟用' if profile.formal_translation_enabled else '禁用'}")
-        logger.info(f"   雙語對照: {'已啟用' if profile.bilingual_output_enabled else '禁用'}")
+            logger.info("   LLM-B: Disabled")
+        logger.info(f"   Formal translation: {'Enabled' if profile.formal_translation_enabled else 'Disabled'}")
+        logger.info(f"   Bilingual output: {'Enabled' if profile.bilingual_output_enabled else 'Disabled'}")
         logger.info("=" * 50)
     
     def get_vram_gb(self) -> float:

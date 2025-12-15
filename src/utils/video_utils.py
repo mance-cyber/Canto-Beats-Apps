@@ -3,6 +3,7 @@ Video utilities for thumbnail extraction with caching support.
 """
 
 import os
+import sys
 import tempfile
 import subprocess
 import hashlib
@@ -10,7 +11,63 @@ import json
 import shutil
 from pathlib import Path
 from typing import List, Tuple, Optional
+
+# Setup FFmpeg path for packaged application
+# FFmpeg is bundled with the application in the install directory
+def _setup_ffmpeg_path():
+    """Add FFmpeg to PATH if found in install directory."""
+    # Check multiple possible locations for bundled ffmpeg
+    possible_dirs = []
+    
+    # 1. Installed location: C:\Program Files\Canto-beats
+    #    Structure: app\src\utils\video_utils.py -> need to go up 4 levels
+    install_dir = Path(__file__).parent.parent.parent.parent
+    possible_dirs.append(install_dir)
+    
+    # 2. Development: canto-beats root
+    project_root = Path(__file__).parent.parent.parent
+    possible_dirs.append(project_root)
+    
+    # 3. CWD
+    possible_dirs.append(Path.cwd())
+    
+    for dir_path in possible_dirs:
+        ffmpeg_path = dir_path / "ffmpeg.exe"
+        if ffmpeg_path.exists():
+            dir_str = str(dir_path)
+            if dir_str.lower() not in os.environ["PATH"].lower():
+                os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
+            return
+    
+    # Also check if ffmpeg is in the same directory as the executable (frozen apps)
+    if getattr(sys, 'frozen', False):
+        exe_dir = Path(sys.executable).parent
+        ffmpeg_path = exe_dir / "ffmpeg.exe"
+        if ffmpeg_path.exists():
+            dir_str = str(exe_dir)
+            if dir_str.lower() not in os.environ["PATH"].lower():
+                os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
+
+_setup_ffmpeg_path()
+
 import ffmpeg
+
+# Monkey-patch ffmpeg-python to hide console window on Windows
+# ffmpeg-python uses subprocess.Popen internally, so we need to patch it
+import sys
+if sys.platform == 'win32':
+    import subprocess
+    _original_popen = subprocess.Popen
+    
+    def _patched_popen(*args, **kwargs):
+        """Patched Popen that adds CREATE_NO_WINDOW flag on Windows."""
+        if 'creationflags' not in kwargs:
+            kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+        return _original_popen(*args, **kwargs)
+    
+    # Patch subprocess.Popen globally for ffmpeg calls
+    subprocess.Popen = _patched_popen
+
 from utils.logger import setup_logger
 
 logger = setup_logger()
@@ -18,6 +75,7 @@ logger = setup_logger()
 # Cache directory
 CACHE_DIR = Path.home() / ".canto-beats" / "thumbnail_cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
 
 
 class VideoThumbnailExtractor:
@@ -52,11 +110,16 @@ class VideoThumbnailExtractor:
         
         # Method 2: Check if FFmpeg supports CUDA
         try:
+            # Use CREATE_NO_WINDOW to prevent black console window on Windows
+            creationflags = 0
+            if sys.platform == 'win32':
+                creationflags = subprocess.CREATE_NO_WINDOW
             result = subprocess.run(
                 ['ffmpeg', '-hwaccels'],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
+                creationflags=creationflags
             )
             if 'cuda' in result.stdout.lower():
                 logger.info("GPU detected via FFmpeg hwaccel list")
@@ -124,7 +187,7 @@ class VideoThumbnailExtractor:
                             break
                     
                     if all_exist:
-                        logger.info(f"✨ Loaded {len(cached_thumbs)} thumbnails from cache (instant!)")
+                        logger.info(f" Loaded {len(cached_thumbs)} thumbnails from cache (instant!)")
                         return cached_thumbs
                 except Exception as e:
                     logger.debug(f"Cache load failed: {e}")

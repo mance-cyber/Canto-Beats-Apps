@@ -153,15 +153,22 @@ class WhisperASR(ModelManager):
             initial_prompt = "以下係廣東話對白，請用粵語口語字幕：佢、喺、睇、嘅、咁、啲、咗、嚟、冇、諗、唔、咩、乜、點、邊、噉、嗰、呢、哋、咪、囉、喎、啦、㗎、吖。"
         
         try:
-            # Get transcription settings from config
-            beam_size = self.config.get('beam_size', 5)
+            # Get transcription settings from config (optimized for accuracy)
+            beam_size = self.config.get('beam_size', 10)  # Increased from 5 for better accuracy
             
-            # Transcribe using faster-whisper
+            # Transcribe using faster-whisper with accuracy optimizations
             segments, info = self.model.transcribe(
                 str(audio_path),
                 language=language,
                 task=task,
-                beam_size=beam_size,
+                # Accuracy optimizations
+                beam_size=beam_size,                    # More candidate paths
+                best_of=5,                              # Select best from 5 samples
+                patience=2.0,                           # More patient beam search
+                temperature=0.0,                        # Deterministic output (no sampling)
+                compression_ratio_threshold=2.8,        # Less aggressive repetition detection
+                no_speech_threshold=0.3,                # More sensitive speech detection
+                # Timestamps and prompt
                 word_timestamps=word_timestamps,
                 initial_prompt=initial_prompt,
                 vad_filter=False,  # We use our own VAD

@@ -15,30 +15,135 @@ from PySide6.QtCore import Qt, Signal, QTimer, Slot, QSize, QEvent
 from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 
 from utils.logger import setup_logger
+from core.path_setup import get_icon_path
 
 logger = setup_logger()
 
 # Try to import mpv
-# First, add project root to PATH to find libmpv-2.dll
-try:
+# CRITICAL: python-mpv uses ctypes.util.find_library() which on Windows
+# does NOT use os.environ["PATH"]. We need to monkeypatch find_library
+# to return our DLL path directly.
+import ctypes
+import ctypes.util
+
+# Store the original find_library function
+_original_find_library = ctypes.util.find_library
+
+# Find libmpv-2.dll location
+_libmpv_path = None
+
+def _find_libmpv():
+    """Search for libmpv library in expected locations (cross-platform)"""
+    global _libmpv_path
+    if _libmpv_path is not None:
+        return _libmpv_path
+    
+    possible_locations = []
+    
+    # Determine library name based on platform
+    if sys.platform == 'darwin':
+        # macOS: libmpv is typically installed via Homebrew
+        lib_names = ['libmpv.dylib', 'libmpv.2.dylib', 'libmpv.1.dylib']
+        # Check Homebrew locations
+        homebrew_paths = [
+            Path('/opt/homebrew/lib'),  # Apple Silicon
+            Path('/usr/local/lib'),      # Intel Mac
+        ]
+        for brew_path in homebrew_paths:
+            for lib_name in lib_names:
+                lib_path = brew_path / lib_name
+                if lib_path.exists():
+                    possible_locations.append(lib_path)
+                    logger.info(f"Found libmpv in Homebrew: {lib_path}")
+    else:
+        # Windows: libmpv-2.dll
+        lib_names = ['libmpv-2.dll']
+    
+    # 1. Installed location (Windows: C:\Program Files\Canto-beats\)
+    #    Structure: app\src\ui\video_player.py -> need to go up 4 levels
+    install_dir = Path(__file__).parent.parent.parent.parent
+    for lib_name in lib_names:
+        if (install_dir / lib_name).exists():
+            possible_locations.append(install_dir / lib_name)
+            logger.info(f"Found libmpv in install dir: {install_dir}")
+    
+    # 2. Development: canto-beats\libmpv-2.dll (or libmpv.dylib)
+    #    Structure: src\ui\video_player.py -> need to go up 3 levels
     project_root = Path(__file__).parent.parent.parent
-    dll_path = str(project_root)
-    if dll_path not in os.environ["PATH"]:
-        os.environ["PATH"] = dll_path + os.pathsep + os.environ["PATH"]
-        logger.info(f"Added DLL path: {dll_path}")
-except Exception as e:
-    logger.warning(f"Could not add DLL path: {e}")
+    for lib_name in lib_names:
+        if (project_root / lib_name).exists():
+            possible_locations.append(project_root / lib_name)
+            logger.info(f"Found libmpv in project root: {project_root}")
+    
+    # 3. Current working directory
+    cwd = Path.cwd()
+    for lib_name in lib_names:
+        if (cwd / lib_name).exists():
+            possible_locations.append(cwd / lib_name)
+            logger.info(f"Found libmpv in cwd: {cwd}")
+    
+    # 4. Executable directory (for frozen apps)
+    if getattr(sys, 'frozen', False):
+        exe_dir = Path(sys.executable).parent
+        for lib_name in lib_names:
+            if (exe_dir / lib_name).exists():
+                possible_locations.append(exe_dir / lib_name)
+                logger.info(f"Found libmpv in exe dir: {exe_dir}")
+    
+    if possible_locations:
+        _libmpv_path = possible_locations[0]
+        logger.info(f"Selected libmpv path: {_libmpv_path}")
+        
+        # Also add the directory to DLL search path for dependencies
+        dll_dir = str(_libmpv_path.parent)
+        if hasattr(os, 'add_dll_directory'):
+            try:
+                os.add_dll_directory(dll_dir)
+                logger.info(f"Added DLL directory: {dll_dir}")
+            except Exception as e:
+                logger.warning(f"Failed to add DLL directory: {e}")
+        
+        # Also add to PATH for good measure
+        if dll_dir.lower() not in os.environ["PATH"].lower():
+            os.environ["PATH"] = dll_dir + os.pathsep + os.environ["PATH"]
+            logger.info(f"Added to PATH: {dll_dir}")
+    else:
+        logger.warning("libmpv-2.dll not found in any expected location")
+        logger.warning(f"  Checked install_dir: {install_dir}")
+        logger.warning(f"  Checked project_root: {project_root}")
+        logger.warning(f"  Checked cwd: {cwd}")
+    
+    return _libmpv_path
+
+def _patched_find_library(name):
+    """
+    Monkeypatched find_library that returns our libmpv path for mpv-related searches.
+    This is the key fix - python-mpv calls find_library('mpv-2'), find_library('libmpv-2'), etc.
+    """
+    # Check if this is an mpv-related search
+    if name in ('mpv-2', 'libmpv-2', 'mpv-1', 'mpv-2.dll', 'libmpv-2.dll', 'mpv-1.dll'):
+        libmpv = _find_libmpv()
+        if libmpv:
+            logger.info(f"find_library('{name}') -> returning: {libmpv}")
+            return str(libmpv)
+    
+    # For other libraries, use original find_library
+    return _original_find_library(name)
+
+# Apply the monkeypatch BEFORE importing mpv
+ctypes.util.find_library = _patched_find_library
+logger.info("Monkeypatched ctypes.util.find_library for mpv detection")
 
 try:
     import mpv
     HAS_MPV = True
-    logger.info("libmpv loaded successfully")
+    logger.info("libmpv loaded successfully via python-mpv")
 except ImportError:
     HAS_MPV = False
-    logger.error("python-mpv not found")
+    logger.error("python-mpv module not installed")
 except OSError as e:
     HAS_MPV = False
-    logger.error(f"libmpv not found: {e}")
+    logger.error(f"libmpv loading failed: {e}")
 
 
 class VideoPlayer(QWidget):
@@ -160,7 +265,7 @@ class VideoPlayer(QWidget):
         # Helper to create icon button
         def create_icon_button(icon_name, size=20, tooltip=""):
             btn = QPushButton()
-            icon_path = f"src/resources/icons/{icon_name}.svg"
+            icon_path = get_icon_path(icon_name)
             if os.path.exists(icon_path):
                 btn.setIcon(QIcon(icon_path))
                 btn.setIconSize(QSize(size, size))
@@ -433,6 +538,17 @@ class VideoPlayer(QWidget):
             self.mpv_player.sub_add(file_path)
             # self.mpv_player.sub_reload() # Not needed after sub_add
             logger.info("Subtitle loaded successfully")
+            
+            # SECURITY: Delete temp SRT files after loading to prevent unauthorized access
+            import tempfile
+            temp_dir = tempfile.gettempdir()
+            if file_path.startswith(temp_dir) and file_path.endswith('.srt'):
+                try:
+                    os.remove(file_path)
+                    logger.info(f"[SECURITY] Deleted temp SRT: {file_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to delete temp SRT: {e}")
+                    
         except Exception as e:
             logger.error(f"Failed to load subtitles: {e}")
             # Don't show error to user - this is called frequently during edits

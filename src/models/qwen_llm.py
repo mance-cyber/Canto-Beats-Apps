@@ -84,33 +84,47 @@ class QwenLLM:
         """Load LLM models based on performance profile."""
         try:
             from transformers import AutoModelForCausalLM, AutoTokenizer
+            import transformers.utils.logging as hf_logging
             import torch
+            
+            # Disable tqdm progress bars to prevent sys.stderr.flush() errors in GUI
+            hf_logging.disable_progress_bar()
             
             device = self.profile.device
             
             # Load LLM-A (always enabled)
             logger.info(f"Loading LLM-A: {self.model_a_id}...")
             
-            # Determine quantization config
+            # Determine quantization config based on VRAM
             model_a_kwargs = {
                 "device_map": "auto" if device == "cuda" else "cpu",
                 "trust_remote_code": True,
             }
             
-            if self.profile.llm_a_quantization == "4bit":
+            quantization = self.profile.llm_a_quantization
+            logger.info(f"Using quantization: {quantization}")
+            
+            if quantization == "4bit":
+                # DISABLED: 4bit quantization causes quality degradation
+                # Force fp16 for consistent quality (same as when bitsandbytes unavailable)
+                logger.info("Using FP16 precision (4bit disabled for quality)")
+                model_a_kwargs["torch_dtype"] = torch.float16 if device == "cuda" else torch.float32
+            elif quantization == "int8":
                 try:
                     from transformers import BitsAndBytesConfig
                     model_a_kwargs["quantization_config"] = BitsAndBytesConfig(
-                        load_in_4bit=True,
-                        bnb_4bit_compute_dtype=torch.float16,
+                        load_in_8bit=True,
                     )
+                    logger.info("Using INT8 quantization")
                 except ImportError:
                     logger.warning("bitsandbytes not available, using full precision")
                     model_a_kwargs["torch_dtype"] = torch.float16 if device == "cuda" else torch.float32
-            elif self.profile.llm_a_quantization == "fp16":
+            elif quantization == "fp16":
                 model_a_kwargs["torch_dtype"] = torch.float16
+                logger.info("Using FP16 precision")
             else:
                 model_a_kwargs["torch_dtype"] = torch.float32
+                logger.info("Using FP32 precision")
             
             self._tokenizer_a = AutoTokenizer.from_pretrained(
                 self.model_a_id, 
@@ -121,7 +135,7 @@ class QwenLLM:
                 **model_a_kwargs
             )
             
-            logger.info("✅ LLM-A loaded successfully")
+            logger.info("[OK] LLM-A loaded successfully")
             
             # Load LLM-B if enabled
             if self.profile.llm_b_enabled and self.model_b_id:
@@ -152,7 +166,7 @@ class QwenLLM:
                     **model_b_kwargs
                 )
                 
-                logger.info("✅ LLM-B loaded successfully")
+                logger.info("[OK] LLM-B loaded successfully")
                 
         except Exception as e:
             logger.error(f"Failed to load LLM models: {e}")
@@ -192,8 +206,8 @@ class QwenLLM:
         prompt: str, 
         model, 
         tokenizer,
-        max_new_tokens: int = 1024,
-        temperature: float = 0.1,
+        max_new_tokens: int = 512,
+        temperature: float = 0.0,
     ) -> str:
         """Generate text using the specified model."""
         import torch
@@ -211,13 +225,22 @@ class QwenLLM:
             inputs = inputs.to("cuda")
         
         with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                temperature=temperature,
-                do_sample=temperature > 0,
-                pad_token_id=tokenizer.eos_token_id,
-            )
+            # Use greedy decoding when temperature=0 (no sampling parameters)
+            if temperature <= 0:
+                outputs = model.generate(
+                    **inputs,
+                    max_new_tokens=max_new_tokens,
+                    do_sample=False,  # Greedy decoding
+                    pad_token_id=tokenizer.eos_token_id,
+                )
+            else:
+                outputs = model.generate(
+                    **inputs,
+                    max_new_tokens=max_new_tokens,
+                    temperature=temperature,
+                    do_sample=True,
+                    pad_token_id=tokenizer.eos_token_id,
+                )
         
         # Decode only the new tokens
         generated = outputs[0][inputs["input_ids"].shape[1]:]
@@ -270,7 +293,7 @@ class QwenLLM:
         protected_text, mapping = protect_proper_nouns(text, self.proper_nouns)
         
         prompt = BASIC_CORRECTION_PROMPT.format(text=protected_text)
-        response = self._generate(prompt, self._model_a, self._tokenizer_a)
+        response = self._generate(prompt, self._model_a, self._tokenizer_a, max_new_tokens=768)
         
         # Parse response
         result = self._parse_json_response(response)
@@ -288,6 +311,76 @@ class QwenLLM:
             # Fallback: return original text
             logger.warning("Failed to parse basic correction response")
             return [text]
+    
+    def refine_text_with_context(self, text: str, context: str) -> Dict:
+        """
+        Refine text with surrounding context for better idiom/slang correction.
+        
+        Args:
+            text: The current sentence to refine
+            context: Formatted context with 前文/當前/後文
+            
+        Returns:
+            Dict with 'sentences' key containing refined text
+        """
+        if not text or not text.strip():
+            return {'sentences': []}
+        
+        if self._model_a is None:
+            logger.error("LLM-A not loaded")
+            return {'sentences': [text]}
+        
+        # Protect proper nouns
+        protected_text, mapping = protect_proper_nouns(text, self.proper_nouns)
+        protected_context = context.replace(text, protected_text)
+        
+        # Enhanced prompt with idiom correction examples
+        prompt = f"""你是粵語字幕編輯，專門校正語音識別的錯別字。
+
+{protected_context}
+
+【常見成語/俗語同音字校正】:
+- 「克苦來路」→「刻苦耐勞」
+- 「無微不至」→「無微不至」
+- 「一視同人」→「一視同仁」
+- 「心曠神怡」→「心曠神怡」
+- 「專心至志」→「專心致志」
+- 「事倍公半」→「事倍功半」
+
+規則：
+- 只輸出校正後的句子
+- 修正成語/俗語的同音字錯誤
+- 保持粵語口語風格
+
+校正後："""
+        
+        response = self._generate(prompt, self._model_a, self._tokenizer_a, max_new_tokens=128)
+        
+        # Clean up response - direct text, no JSON
+        cleaned = response.strip()
+        
+        # Remove any prefixes that LLM might add
+        prefixes_to_remove = ["校正後：", "校正後:", "校正：", "校正:", "【當前句子】", 
+                              "輸出：", "輸出:", "結果：", "結果:"]
+        for prefix in prefixes_to_remove:
+            if cleaned.startswith(prefix):
+                cleaned = cleaned[len(prefix):].strip()
+        
+        # Remove surrounding quotes
+        for (start, end) in [('"', '"'), ("'", "'"), ("「", "」"), ("'", "'"), (""", """)]:
+            if cleaned.startswith(start) and cleaned.endswith(end):
+                cleaned = cleaned[1:-1]
+        
+        # Remove trailing explanations (anything after newline)
+        if '\n' in cleaned:
+            cleaned = cleaned.split('\n')[0].strip()
+        
+        # Use cleaned text if valid, otherwise fallback to original
+        if cleaned and len(cleaned) > 0:
+            restored = restore_proper_nouns(cleaned, mapping)
+            return {'sentences': [restored]}
+        
+        return {'sentences': [text]}
     
     def judge_complexity(self, text: str) -> bool:
         """
@@ -349,7 +442,7 @@ class QwenLLM:
             # Use LLM-A for simple processing
             logger.info("Using LLM-A for simple processing")
             prompt = SIMPLE_PROCESS_PROMPT.format(text=protected_text)
-            response = self._generate(prompt, self._model_a, self._tokenizer_a)
+            response = self._generate(prompt, self._model_a, self._tokenizer_a, max_new_tokens=512)
         
         # Parse response
         result = self._parse_json_response(response)
@@ -400,7 +493,7 @@ class QwenLLM:
             - "mode": "basic" or "full"
         """
         if self.profile.tier in (PerformanceTier.ENTRY, PerformanceTier.CPU_ONLY):
-            # Basic mode
+            # Basic mode - fast, no formal translation
             sentences = self.process_basic(raw_text)
             return {
                 "sentences": sentences,
@@ -408,7 +501,7 @@ class QwenLLM:
                 "mode": "basic",
             }
         else:
-            # Full mode
+            # Full mode (MAINSTREAM, ULTIMATE only)
             processed = self.process_full(raw_text)
             return {
                 "sentences": [p.colloquial for p in processed],

@@ -1,0 +1,52 @@
+======================================================================
+MPV Deep Diagnosis
+======================================================================
+
+[1] Environment Analysis
+--------------------------------------------------
+Python executable: C:\Users\ktphi\miniconda3\python.exe
+Script location: C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\diagnose_mpv.py
+Current working directory: C:\Users\ktphi\.gemini\antigravity\playground\canto-beats
+sys.frozen: False
+
+[2] Searching for libmpv-2.dll
+--------------------------------------------------
+Checking locations:
+  Project root:
+    Path: C:\Users\ktphi\.gemini\antigravity\playground\canto-beats
+    libmpv-2.dll: [FOUND]
+    Size: 112.8 MB
+  Standalone dist:
+    Path: C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\dist\Canto-beats-Standalone
+    libmpv-2.dll: [FOUND]
+    Size: 112.8 MB
+  CWD:
+    Path: C:\Users\ktphi\.gemini\antigravity\playground\canto-beats
+    libmpv-2.dll: [FOUND]
+    Size: 112.8 MB
+
+[3] Direct DLL Loading Test
+--------------------------------------------------
+Added to PATH: C:\Users\ktphi\.gemini\antigravity\playground\canto-beats
+Added DLL directory: C:\Users\ktphi\.gemini\antigravity\playground\canto-beats
+
+Attempting to load: C:\Users\ktphi\.gemini\antigravity\playground\canto-beats\libmpv-2.dll
+[SUCCESS] libmpv-2.dll loaded successfully with ctypes!
+
+[4] Python MPV Module Test
+--------------------------------------------------
+[SUCCESS] mpv module imported!
+[SUCCESS] MPV instance created!
+[SUCCESS] MPV instance terminated!
+
+[5] PATH Analysis (first 5 entries)
+--------------------------------------------------
+  1. C:\Users\ktphi\.gemini\antigravity\playground\canto-beats
+  2. C:\Users\ktphi\miniconda3
+  3. C:\Users\ktphi\miniconda3\Library\mingw-w64\bin
+  4. C:\Users\ktphi\miniconda3\Library\usr\bin
+  5. C:\Users\ktphi\miniconda3\Library\bin
+
+======================================================================
+Diagnosis Complete
+======================================================================

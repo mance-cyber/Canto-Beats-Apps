@@ -12,6 +12,8 @@ from PySide6.QtCore import Signal, Qt, QSize
 from PySide6.QtGui import QIcon
 import os
 
+from core.path_setup import get_icon_path
+
 class StyleControlPanel(QWidget):
     """
     Right-side panel for controlling subtitle styles.
@@ -139,11 +141,11 @@ class StyleControlPanel(QWidget):
         
         # Icon
         icon_label = QLabel()
-        icon_path = f"src/resources/icons/{icon_name}.svg"
+        icon_path = get_icon_path(icon_name)
         if os.path.exists(icon_path):
             icon_label.setPixmap(QIcon(icon_path).pixmap(16, 16))
         else:
-            icon_label.setText("✨")
+            icon_label.setText("")
         header_layout.addWidget(icon_label)
         
         # Title
@@ -228,12 +230,12 @@ class StyleControlPanel(QWidget):
     def _update_ai_status(self):
         """Update the AI model status display."""
         if self.downloader.is_model_installed():
-            self.ai_status_label.setText("✅ AI 模型已安裝")
+            self.ai_status_label.setText("[OK] AI 模型已安裝")
             self.ai_status_label.setStyleSheet("color: #22c55e; font-size: 12px;")
             self.ai_download_btn.hide()
             self.ai_download_btn.setEnabled(False)
         else:
-            self.ai_status_label.setText("⚠️ AI 模型未安裝 (~4.5GB)")
+            self.ai_status_label.setText("[!] AI 模型未安裝 (~4.5GB)")
             self.ai_status_label.setStyleSheet("color: #f59e0b; font-size: 12px;")
             self.ai_download_btn.show()
             self.ai_download_btn.setEnabled(True)
@@ -265,7 +267,7 @@ class StyleControlPanel(QWidget):
     
     def _on_download_error(self, error: str):
         """Handle download error."""
-        self.ai_progress_bar.setText(f"❌ 錯誤: {error}")
+        self.ai_progress_bar.setText(f"[X] 錯誤: {error}")
         self.ai_progress_bar.setStyleSheet("color: #ef4444; font-size: 11px;")
         self.ai_download_btn.setEnabled(True)
         self.ai_download_btn.setText("重試下載")

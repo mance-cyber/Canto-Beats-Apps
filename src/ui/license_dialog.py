@@ -34,7 +34,7 @@ class LicenseDialog(QDialog):
         layout.setContentsMargins(30, 30, 30, 30)
         
         # Title
-        title = QLabel("🎵 Canto-beats 專業版")
+        title = QLabel("Canto-beats Pro")
         title_font = QFont()
         title_font.setPointSize(20)
         title_font.setBold(True)
@@ -80,7 +80,7 @@ class LicenseDialog(QDialog):
         machine_info.setStyleSheet("color: #666;")
         machine_layout.addWidget(machine_info)
         
-        help_text = QLabel("⚠️ 序號將綁定到此機器，最多可轉移 1 次")
+        help_text = QLabel("[!] License will be bound to this machine, max 1 transfer")
         help_text.setStyleSheet("color: #f39c12; font-size: 10pt;")
         help_text.setWordWrap(True)
         machine_layout.addWidget(help_text)
@@ -109,7 +109,7 @@ class LicenseDialog(QDialog):
         
         
         # Add purchase button on the left - Highly visible with gradient
-        purchase_btn = QPushButton("💳 立即購買")
+        purchase_btn = QPushButton("Buy Now")
         purchase_btn.clicked.connect(self.open_purchase_page)
         purchase_btn.setMinimumHeight(45)
         purchase_btn.setCursor(Qt.PointingHandCursor)
@@ -262,7 +262,7 @@ class LicenseDialog(QDialog):
         if is_valid:
             license_info = self.license_manager.get_license_info()
             if license_info:
-                self.log_status(f"✅ 已找到有效授權")
+                self.log_status(f"[OK] 已找到有效授權")
                 self.log_status(f"授權類型: {license_info.license_type}")
                 self.log_status(f"剩餘轉移次數: {license_info.transfers_remaining}")
                 
@@ -290,18 +290,18 @@ class LicenseDialog(QDialog):
         key = self.key_input.text().strip()
         
         if not key:
-            self.log_status("❌ 請輸入序號")
+            self.log_status("[!] 請輸入序號")
             return
         
-        self.log_status(f"🔍 驗證序號: {key}")
+        self.log_status(f"驗證序號: {key}")
         
         is_valid, message = self.license_manager.validate_key(key)
         
         if is_valid:
-            self.log_status(f"✅ {message}")
+            self.log_status(f"[OK] {message}")
             self.activate_btn.setEnabled(True)
         else:
-            self.log_status(f"❌ {message}")
+            self.log_status(f"[ERROR] {message}")
             self.activate_btn.setEnabled(False)
     
     def activate_license(self):
@@ -312,13 +312,13 @@ class LicenseDialog(QDialog):
             QMessageBox.warning(self, "錯誤", "請輸入序號")
             return
         
-        self.log_status(f"🚀 啟用序號...")
+        self.log_status(f"啟用序號...")
         
         # Try activation
         success, message = self.license_manager.activate_license(key, force_transfer=False)
         
         if success:
-            self.log_status(f"✅ {message}")
+            self.log_status(f"[OK] {message}")
             QMessageBox.information(
                 self,
                 "成功",
@@ -342,24 +342,24 @@ class LicenseDialog(QDialog):
                     # Force transfer
                     success, message = self.license_manager.activate_license(key, force_transfer=True)
                     if success:
-                        self.log_status(f"✅ {message}")
+                        self.log_status(f"[OK] {message}")
                         QMessageBox.information(self, "成功", "授權已轉移到本機！")
                         self.accept()
                     else:
-                        self.log_status(f"❌ {message}")
+                        self.log_status(f"[ERROR] {message}")
                         QMessageBox.critical(self, "錯誤", message)
             else:
-                self.log_status(f"❌ {message}")
+                self.log_status(f"[ERROR] {message}")
                 QMessageBox.critical(self, "錯誤", message)
 
     def open_purchase_page(self):
         """Open purchase page in browser."""
         import webbrowser
-        url = "https://yourwebsite.com/purchase"  # TODO: Replace with actual purchase page URL
+        url = "https://buy.stripe.com/7sY28j6nTahud3Mfxa4Vy01"
         
         try:
             webbrowser.open(url)
-            self.log_status(f"🌐 已開啟購買頁面: {url}")
+            self.log_status(f"已開啟購買頁面: {url}")
         except Exception as e:
-            self.log_status(f"❌ 無法開啟網頁: {e}")
+            self.log_status(f"[ERROR] 無法開啟網頁: {e}")
             QMessageBox.warning(self, "錯誤", f"無法開啟網頁瀏覽器\n{str(e)}")
