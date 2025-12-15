@@ -36,7 +36,7 @@ jobs:
           
           echo "=== requirements-macos.txt ==="
           cat requirements-macos.txt
-          echo "=============================
+          echo "=============================="
           
           pip install --upgrade pip
           
