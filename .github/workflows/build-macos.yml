@@ -1,0 +1,123 @@
+name: Build macOS Only
+
+on:
+  workflow_dispatch:  # 只允許手動觸發
+    inputs:
+      create_release:
+        description: '是否建立 Release'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build-macos:
+    name: Build macOS DMG
+    runs-on: macos-latest  # Apple Silicon runner
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install Homebrew dependencies
+        run: |
+          brew install mpv ffmpeg
+      
+      - name: Install Python dependencies
+        run: |
+          # 排除 Windows 專用的套件
+          grep -v "llama-cpp-python\|bitsandbytes" requirements.txt > requirements-macos.txt || true
+          pip install --upgrade pip
+          pip install -r requirements-macos.txt
+          pip install pyinstaller
+      
+      - name: Build with PyInstaller
+        run: python build_pyinstaller_macos.py
+      
+      - name: Verify build output
+        run: |
+          echo "=== Build Output ==="
+          ls -la dist/
+          if [ -d "dist/Canto-beats.app" ]; then
+            echo "✅ Canto-beats.app created successfully"
+            du -sh dist/Canto-beats.app
+          else
+            echo "❌ Canto-beats.app not found!"
+            exit 1
+          fi
+      
+      - name: Create DMG
+        run: |
+          mkdir -p dist/dmg
+          cp -r dist/Canto-beats.app dist/dmg/
+          
+          # 建立 DMG 檔案
+          hdiutil create \
+            -volname "Canto-beats" \
+            -srcfolder dist/dmg \
+            -ov \
+            -format UDZO \
+            dist/Canto-beats-macOS.dmg
+          
+          echo "=== DMG Created ==="
+          ls -lh dist/Canto-beats-macOS.dmg
+      
+      - name: Upload macOS DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Canto-beats-macOS-DMG
+          path: dist/Canto-beats-macOS.dmg
+          retention-days: 30
+      
+      - name: Upload macOS App Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Canto-beats-macOS-App
+          path: dist/Canto-beats.app
+          retention-days: 30
+
+  create-release:
+    name: Create Release (Optional)
+    needs: build-macos
+    runs-on: ubuntu-latest
+    if: ${{ inputs.create_release }}
+    
+    steps:
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Canto-beats-macOS-DMG
+          path: release
+      
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: macos-build-${{ steps.date.outputs.date }}
+          name: "macOS Build ${{ steps.date.outputs.date }}"
+          files: release/Canto-beats-macOS.dmg
+          draft: false
+          prerelease: true
+          body: |
+            ## macOS Build
+            
+            **Date:** ${{ steps.date.outputs.date }}
+            
+            ### Installation
+            1. Download `Canto-beats-macOS.dmg`
+            2. Open the DMG file
+            3. Drag Canto-beats to Applications folder
+            4. First run: Right-click > Open (to bypass Gatekeeper)
+            
+            ### Requirements
+            - macOS 11 Big Sur or later
+            - Apple Silicon (M1/M2/M3) or Intel Mac
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
