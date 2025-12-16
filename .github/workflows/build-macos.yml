@@ -1,18 +1,18 @@
 name: Build macOS Only
 
 on:
-  workflow_dispatch:  # 只允許手動觸發
+  workflow_dispatch:
     inputs:
       create_release:
-        description: '是否建立 Release'
+        description: 'Create Release'
         required: false
         default: false
         type: boolean
 
 jobs:
   build-macos:
-    name: Build macOS DMG (Universal)
-    runs-on: macos-13  # Intel runner for wider compatibility
+    name: Build macOS DMG
+    runs-on: macos-latest
     
     steps:
       - name: Checkout code
@@ -24,44 +24,52 @@ jobs:
           python-version: '3.11'
       
       - name: Install Homebrew dependencies
-        run: |
-          brew install mpv ffmpeg
+        run: brew install mpv ffmpeg
       
       - name: Install Python dependencies
         run: |
-          # Exclude Windows-only and incompatible packages
-          # llama-cpp-python: Requires special CUDA build
-          # bitsandbytes: Not supported on macOS
           grep -v -E "llama-cpp-python|bitsandbytes" requirements.txt > requirements-macos.txt || true
-          
-          echo "=== requirements-macos.txt ==="
-          cat requirements-macos.txt
-          echo "=============================="
-          
           pip install --upgrade pip
-          
-          # Install PyTorch for macOS (MPS support for Apple Silicon)
           pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-          
-          # Install other dependencies
           pip install -r requirements-macos.txt
           pip install pyinstaller
-          
-          echo "=== Installed packages ==="
-          pip list
       
       - name: Build with PyInstaller
-        run: python build_pyinstaller_macos.py
+        run: |
+          python -m PyInstaller main.py \
+            --onedir \
+            --windowed \
+            --name=Canto-beats \
+            --distpath=dist \
+            --workpath=build \
+            --specpath=. \
+            --add-data=src:src \
+            --add-data=public:public \
+            --hidden-import=PySide6.QtCore \
+            --hidden-import=PySide6.QtGui \
+            --hidden-import=PySide6.QtWidgets \
+            --hidden-import=torch \
+            --hidden-import=faster_whisper \
+            --hidden-import=transformers \
+            --hidden-import=cryptography \
+            --hidden-import=sentencepiece \
+            --hidden-import=accelerate \
+            --osx-bundle-identifier=com.cantobeats.app \
+            --clean \
+            --noconfirm \
+            --exclude-module=tkinter \
+            --exclude-module=matplotlib
       
       - name: Verify build output
         run: |
           echo "=== Build Output ==="
           ls -la dist/
           if [ -d "dist/Canto-beats.app" ]; then
-            echo "✅ Canto-beats.app created successfully"
+            echo "Canto-beats.app created successfully"
             du -sh dist/Canto-beats.app
+            file dist/Canto-beats.app/Contents/MacOS/Canto-beats
           else
-            echo "❌ Canto-beats.app not found!"
+            echo "Canto-beats.app not found!"
             exit 1
           fi
       
@@ -69,15 +77,7 @@ jobs:
         run: |
           mkdir -p dist/dmg
           cp -r dist/Canto-beats.app dist/dmg/
-          
-          # 建立 DMG 檔案
-          hdiutil create \
-            -volname "Canto-beats" \
-            -srcfolder dist/dmg \
-            -ov \
-            -format UDZO \
-            dist/Canto-beats-macOS.dmg
-          
+          hdiutil create -volname "Canto-beats" -srcfolder dist/dmg -ov -format UDZO dist/Canto-beats-macOS.dmg
           echo "=== DMG Created ==="
           ls -lh dist/Canto-beats-macOS.dmg
       
@@ -126,13 +126,14 @@ jobs:
             **Date:** ${{ steps.date.outputs.date }}
             
             ### Installation
-            1. Download `Canto-beats-macOS.dmg`
+            1. Download Canto-beats-macOS.dmg
             2. Open the DMG file
             3. Drag Canto-beats to Applications folder
             4. First run: Right-click > Open (to bypass Gatekeeper)
             
             ### Requirements
             - macOS 11 Big Sur or later
-            - Apple Silicon (M1/M2/M3) or Intel Mac
+            - Apple Silicon (M1/M2/M3) - Native
+            - Intel Mac - May work via Rosetta 2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
