@@ -11,8 +11,8 @@ on:
 
 jobs:
   build-macos:
-    name: Build macOS DMG
-    runs-on: macos-latest  # Apple Silicon runner
+    name: Build macOS DMG (Universal)
+    runs-on: macos-13  # Intel runner for wider compatibility
     
     steps:
       - name: Checkout code
