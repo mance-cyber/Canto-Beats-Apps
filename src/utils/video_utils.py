@@ -15,11 +15,22 @@ from typing import List, Tuple, Optional
 # Setup FFmpeg path for packaged application
 # FFmpeg is bundled with the application in the install directory
 def _setup_ffmpeg_path():
-    """Add FFmpeg to PATH if found in install directory."""
+    """Add FFmpeg to PATH if found in install directory (cross-platform)."""
+    import sys
+    
+    # Determine FFmpeg executable name based on platform
+    ffmpeg_name = "ffmpeg.exe" if sys.platform == 'win32' else "ffmpeg"
+    
     # Check multiple possible locations for bundled ffmpeg
     possible_dirs = []
     
-    # 1. Installed location: C:\Program Files\Canto-beats
+    # Platform-specific paths
+    if sys.platform == 'darwin':
+        # macOS: Check Homebrew locations first
+        possible_dirs.append(Path('/opt/homebrew/bin'))  # Apple Silicon
+        possible_dirs.append(Path('/usr/local/bin'))      # Intel Mac
+    
+    # 1. Installed location: C:\Program Files\Canto-beats (or /Applications/Canto-beats.app)
     #    Structure: app\src\utils\video_utils.py -> need to go up 4 levels
     install_dir = Path(__file__).parent.parent.parent.parent
     possible_dirs.append(install_dir)
@@ -32,21 +43,30 @@ def _setup_ffmpeg_path():
     possible_dirs.append(Path.cwd())
     
     for dir_path in possible_dirs:
-        ffmpeg_path = dir_path / "ffmpeg.exe"
+        ffmpeg_path = dir_path / ffmpeg_name
         if ffmpeg_path.exists():
             dir_str = str(dir_path)
-            if dir_str.lower() not in os.environ["PATH"].lower():
-                os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
+            # On Windows, PATH comparison is case-insensitive
+            if sys.platform == 'win32':
+                if dir_str.lower() not in os.environ["PATH"].lower():
+                    os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
+            else:
+                if dir_str not in os.environ["PATH"]:
+                    os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
             return
     
     # Also check if ffmpeg is in the same directory as the executable (frozen apps)
     if getattr(sys, 'frozen', False):
         exe_dir = Path(sys.executable).parent
-        ffmpeg_path = exe_dir / "ffmpeg.exe"
+        ffmpeg_path = exe_dir / ffmpeg_name
         if ffmpeg_path.exists():
             dir_str = str(exe_dir)
-            if dir_str.lower() not in os.environ["PATH"].lower():
-                os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
+            if sys.platform == 'win32':
+                if dir_str.lower() not in os.environ["PATH"].lower():
+                    os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
+            else:
+                if dir_str not in os.environ["PATH"]:
+                    os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
 
 _setup_ffmpeg_path()
 

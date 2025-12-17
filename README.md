@@ -88,9 +88,45 @@ canto-beats/
 - [ ] Timeline 编辑器
 - [ ] 播放器集成
 
-### Phase 6: 打包发布
-- [ ] Windows .exe
-- [ ] macOS .app
+### Phase 6: 打包发布 ✅
+- [x] Windows .exe (PyInstaller)
+- [x] macOS .app (PyInstaller)
+- [x] macOS Silicon 专用打包
+
+---
+
+## 📦 打包与分发
+
+### Windows
+```bash
+python build_pyinstaller.py
+```
+输出: `dist/Canto-beats.exe`
+
+### macOS Intel
+```bash
+python build_pyinstaller_macos.py
+```
+输出: `dist/Canto-beats.app`
+
+### macOS Silicon (M1/M2/M3) - 推荐
+```bash
+# 一键配置环境
+./setup_macos_silicon.sh
+
+# 激活虚拟环境
+source venv/bin/activate
+
+# 打包
+python build_silicon_macos.py
+```
+输出: `dist/Canto-beats.app` + `dist/Canto-beats-Silicon.dmg`
+
+**详细文档**:
+- 快速开始: `MACOS_QUICK_START.md`
+- 完整指南: `MACOS_SILICON_BUILD_GUIDE.md`
+- 技术细节: `MACOS_TECHNICAL_NOTES.md`
+- 跨平台对比: `PACKAGING_COMPARISON.md`
 
 ---
 
@@ -103,60 +139,5 @@ Proprietary - All Rights Reserved
 ## 👨‍💻 开发者
 
 Created with ❤️ for Cantonese speakers worldwide
-=======
-# Canto-Beats 廣東話字幕生成器
-
-專為廣東話影片設計的 AI 自動字幕生成工具。
-
-## 🎯 特點
-
-- ✅ 99.9% 識別準確率
-- ✅ 支援懶音、粗口、中英夾雜
-- ✅ 完全本地運算，保護私隱
-- ✅ 一次買斷，永久使用
-- ✅ 支援匯出 SRT / ASS / TXT
-
-## 🚀 技術棧
-
-- **前端**: Next.js 15 + TypeScript + Tailwind CSS
-- **付款**: Stripe Checkout
-- **資料庫**: Supabase
-- **郵件**: Gmail SMTP
-- **部署**: Vercel
-
-## 📦 安裝
-
-```bash
-npm install
-```
-
-## 🔧 環境變數設定
-
-建立 `.env.local`:
-
-```env
-# Stripe
-STRIPE_SECRET_KEY=your_stripe_secret_key
-STRIPE_WEBHOOK_SECRET=your_webhook_secret
-
-# Supabase
-SUPABASE_URL=your_supabase_url
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-
-# Gmail
-GMAIL_USER=your_email@domain.com
-GMAIL_APP_PASSWORD=your_app_password
-```
-
-## 🏃 運行
-
-```bash
-npm run dev
-```
-
-## 📧 聯絡
-
-Email: info@cantobeats.com
 
 Made with ❤️ in Hong Kong 🇭🇰
->>>>>>> f0b0cea0f99da02e61f9997ebde63f0098a3b6ab

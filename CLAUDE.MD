@@ -418,3 +418,55 @@ strategy = \"systematic-search\"  # 系统化搜索策略
 analysis_depth = \"architectural\"  # 架构级分析深度
 documentation_sync = true  # 强制文档同步
 </MCP>
+
+---
+
+## 📦 macOS Silicon 打包架构 (2024-01-XX 新增)
+
+### 核心文件
+- `build_silicon_macos.py` - Silicon Mac 专用打包脚本，自动处理 ARM64 依赖
+- `setup_macos_silicon.sh` - 一键环境配置脚本，自动安装 Homebrew + 依赖
+- `MACOS_SILICON_BUILD_GUIDE.md` - 完整打包指南，包含手动和自动化流程
+- `MACOS_TECHNICAL_NOTES.md` - 技术细节文档，涵盖架构、依赖、签名等
+- `MACOS_QUICK_START.md` - 快速开始指南，3 条命令完成打包
+- `PACKAGING_COMPARISON.md` - 跨平台打包方案对比
+
+### 设计哲学
+1. **架构纯净** - 强制 ARM64 原生，拒绝 Rosetta 2 兼容模式
+2. **依赖自动化** - 脚本自动检测并安装 libmpv、FFmpeg 等系统库
+3. **用户友好** - 一键脚本 + 详细文档，降低打包门槛
+4. **错误预防** - 架构检查、依赖验证、自动移除隔离属性
+
+### 关键技术决策
+- **PyInstaller over Nuitka** - 成熟稳定，社区支持好
+- **Homebrew 依赖管理** - 标准化系统库安装
+- **onedir 模式** - 便于调试和增量更新
+- **自动 xattr 清理** - 避免 Gatekeeper 阻止
+
+### 依赖处理策略
+```
+┌─────────────────────┬──────────────┬─────────────────────┐
+│      依赖           │   处理方式   │      说明           │
+├─────────────────────┼──────────────┼─────────────────────┤
+│ PyTorch             │ ARM64 原生   │ Apple 优化版本      │
+│ libmpv              │ --add-binary │ Homebrew 安装       │
+│ FFmpeg              │ --add-binary │ Homebrew 安装       │
+│ llama-cpp-python    │ 源码编译     │ 可选，需 CMAKE      │
+│ bitsandbytes        │ 排除         │ 仅支持 CUDA         │
+└─────────────────────┴──────────────┴─────────────────────┘
+```
+
+### 打包流程
+```
+环境检查 → 依赖安装 → PyInstaller 构建 → xattr 清理 → DMG 创建
+   ↓           ↓              ↓               ↓            ↓
+架构验证   Homebrew      --target-arch    移除隔离    hdiutil create
+```
+
+### 文件变更记录
+- `build_silicon_macos.py`: 新增 Silicon Mac 专用打包脚本
+- `setup_macos_silicon.sh`: 新增一键环境配置脚本
+- `MACOS_SILICON_BUILD_GUIDE.md`: 新增完整打包指南
+- `MACOS_TECHNICAL_NOTES.md`: 新增技术细节文档
+- `MACOS_QUICK_START.md`: 新增快速开始指南
+- `PACKAGING_COMPARISON.md`: 新增跨平台打包对比

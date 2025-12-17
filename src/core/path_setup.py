@@ -79,7 +79,7 @@ def _get_app_directories():
 
 def setup_all_paths():
     """
-    Setup PATH environment variable for all external dependencies.
+    Setup PATH environment variable for all external dependencies (cross-platform).
     Should be called once at application startup.
     
     Returns:
@@ -94,7 +94,26 @@ def setup_all_paths():
         'directories_added': []
     }
     
+    # Determine executable/library names based on platform
+    if sys.platform == 'darwin':
+        ffmpeg_name = 'ffmpeg'
+        libmpv_name = 'libmpv.dylib'
+    else:  # Windows
+        ffmpeg_name = 'ffmpeg.exe'
+        libmpv_name = 'libmpv-2.dll'
+    
     app_dirs = _get_app_directories()
+    
+    # Add Homebrew paths for macOS
+    if sys.platform == 'darwin':
+        homebrew_paths = [
+            Path('/opt/homebrew/bin'),   # Apple Silicon
+            Path('/opt/homebrew/lib'),   # Apple Silicon libs
+            Path('/usr/local/bin'),       # Intel Mac
+            Path('/usr/local/lib'),       # Intel Mac libs
+        ]
+        app_dirs = homebrew_paths + app_dirs
+    
     logger.info(f"Searching for dependencies in: {[str(d) for d in app_dirs]}")
     
     # Check what dependencies exist in each directory
@@ -103,26 +122,40 @@ def setup_all_paths():
             continue
             
         dir_str = str(dir_path)
-        has_ffmpeg = (dir_path / "ffmpeg.exe").exists()
-        has_libmpv = (dir_path / "libmpv-2.dll").exists()
+        has_ffmpeg = (dir_path / ffmpeg_name).exists()
+        has_libmpv = (dir_path / libmpv_name).exists()
+        
+        # On macOS, also check for alternate libmpv names
+        if sys.platform == 'darwin' and not has_libmpv:
+            for alt_name in ['libmpv.2.dylib', 'libmpv.1.dylib']:
+                if (dir_path / alt_name).exists():
+                    has_libmpv = True
+                    break
         
         if has_ffmpeg:
             results['ffmpeg'] = True
-            logger.info(f"Found ffmpeg.exe in: {dir_str}")
+            logger.info(f"Found {ffmpeg_name} in: {dir_str}")
             
         if has_libmpv:
             results['libmpv'] = True
-            logger.info(f"Found libmpv-2.dll in: {dir_str}")
+            logger.info(f"Found {libmpv_name} in: {dir_str}")
         
         # Add to PATH if any dependency found
         if has_ffmpeg or has_libmpv:
-            if dir_str.lower() not in os.environ["PATH"].lower():
-                os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
-                results['directories_added'].append(dir_str)
-                logger.info(f"Added to PATH: {dir_str}")
+            # On Windows, PATH comparison is case-insensitive
+            if sys.platform == 'win32':
+                if dir_str.lower() not in os.environ["PATH"].lower():
+                    os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
+                    results['directories_added'].append(dir_str)
+                    logger.info(f"Added to PATH: {dir_str}")
+            else:
+                if dir_str not in os.environ["PATH"]:
+                    os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
+                    results['directories_added'].append(dir_str)
+                    logger.info(f"Added to PATH: {dir_str}")
             
-            # Also use os.add_dll_directory for Python 3.8+
-            if hasattr(os, 'add_dll_directory'):
+            # Also use os.add_dll_directory for Python 3.8+ (Windows only)
+            if sys.platform == 'win32' and hasattr(os, 'add_dll_directory'):
                 try:
                     os.add_dll_directory(dir_str)
                     logger.info(f"Added DLL directory: {dir_str}")
@@ -133,12 +166,18 @@ def setup_all_paths():
     if results['ffmpeg']:
         logger.info("[OK] FFmpeg available")
     else:
-        logger.warning("[!] FFmpeg not found - thumbnails will not work")
+        if sys.platform == 'darwin':
+            logger.warning("[!] FFmpeg not found - run: brew install ffmpeg")
+        else:
+            logger.warning("[!] FFmpeg not found - thumbnails will not work")
         
     if results['libmpv']:
-        logger.info("[OK] libmpv-2.dll available")
+        logger.info("[OK] libmpv available")
     else:
-        logger.warning("[!] libmpv-2.dll not found - video playback may fail")
+        if sys.platform == 'darwin':
+            logger.warning("[!] libmpv not found - run: brew install mpv")
+        else:
+            logger.warning("[!] libmpv-2.dll not found - video playback may fail")
     
     return results
 

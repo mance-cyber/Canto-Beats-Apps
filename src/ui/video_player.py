@@ -108,10 +108,25 @@ def _find_libmpv():
             os.environ["PATH"] = dll_dir + os.pathsep + os.environ["PATH"]
             logger.info(f"Added to PATH: {dll_dir}")
     else:
-        logger.warning("libmpv-2.dll not found in any expected location")
-        logger.warning(f"  Checked install_dir: {install_dir}")
-        logger.warning(f"  Checked project_root: {project_root}")
-        logger.warning(f"  Checked cwd: {cwd}")
+        if sys.platform == 'darwin':
+            # macOS-specific error with Homebrew instructions
+            logger.error("=" * 60)
+            logger.error("libmpv not found on macOS!")
+            logger.error("")
+            logger.error("To fix this, please install mpv using Homebrew:")
+            logger.error("  1. Install Homebrew (if not installed):")
+            logger.error("     /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"")
+            logger.error("")
+            logger.error("  2. Install mpv:")
+            logger.error("     brew install mpv")
+            logger.error("")
+            logger.error("  3. Restart Canto-beats")
+            logger.error("=" * 60)
+        else:
+            logger.warning("libmpv-2.dll not found in any expected location")
+            logger.warning(f"  Checked install_dir: {install_dir}")
+            logger.warning(f"  Checked project_root: {project_root}")
+            logger.warning(f"  Checked cwd: {cwd}")
     
     return _libmpv_path
 
@@ -156,6 +171,7 @@ class VideoPlayer(QWidget):
     duration_changed = Signal(float)  # Total duration in seconds
     state_changed = Signal(bool)      # True = Playing, False = Paused
     video_loaded = Signal(bool)       # True = Video loaded, False = No video
+    load_video_requested = Signal()   # Emitted when user clicks 'Load Video' button
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -218,6 +234,42 @@ class VideoPlayer(QWidget):
         self.video_container = QFrame()
         self.video_container.setStyleSheet("background-color: #000;")
         self.video_container.setMinimumHeight(400)
+        
+        # Create a layout for the video container to hold the load button overlay
+        video_container_layout = QVBoxLayout(self.video_container)
+        video_container_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Load video button overlay (shown when no video is loaded)
+        self.load_video_overlay = QFrame()
+        self.load_video_overlay.setStyleSheet("background-color: transparent;")
+        load_overlay_layout = QVBoxLayout(self.load_video_overlay)
+        load_overlay_layout.setAlignment(Qt.AlignCenter)
+        
+        self.load_video_btn = QPushButton("加載影片")
+        self.load_video_btn.setStyleSheet("""
+            QPushButton {
+                background-color: rgba(6, 182, 212, 0.9);
+                color: white;
+                font-size: 18px;
+                font-weight: bold;
+                padding: 16px 32px;
+                border-radius: 8px;
+                border: 2px solid #22d3ee;
+            }
+            QPushButton:hover {
+                background-color: rgba(34, 211, 238, 1.0);
+                border-color: #67e8f9;
+            }
+            QPushButton:pressed {
+                background-color: rgba(8, 145, 178, 1.0);
+            }
+        """)
+        self.load_video_btn.setCursor(Qt.PointingHandCursor)
+        self.load_video_btn.clicked.connect(self.load_video_requested.emit)
+        load_overlay_layout.addWidget(self.load_video_btn, alignment=Qt.AlignCenter)
+        
+        video_container_layout.addWidget(self.load_video_overlay)
+        
         layout.addWidget(self.video_container)
         
         # Progress slider
@@ -378,7 +430,10 @@ class VideoPlayer(QWidget):
     def _init_mpv(self):
         """Initialize MPV player"""
         if not HAS_MPV:
-            self._show_error("MPV not available")
+            if sys.platform == 'darwin':
+                self._show_error("MPV 未安裝\n\n請在終端機執行:\nbrew install mpv\n\n然後重新啟動 Canto-beats")
+            else:
+                self._show_error("MPV not available")
             return
             
         try:
@@ -450,6 +505,8 @@ class VideoPlayer(QWidget):
                 self.duration_changed.emit(self.duration)
                 self._has_video = True
                 self.video_loaded.emit(True)
+                # Hide load video overlay
+                self.load_video_overlay.hide()
             
         except Exception as e:
             logger.error(f"Error loading video: {e}")

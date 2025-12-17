@@ -17,8 +17,17 @@ logger = setup_logger()
 # Setup FFmpeg path for packaged application
 # FFmpeg is bundled with the application in the install directory
 def _setup_ffmpeg_path():
-    """Add FFmpeg to PATH if found in install directory."""
+    """Add FFmpeg to PATH if found in install directory (cross-platform)."""
+    # Determine FFmpeg executable name based on platform
+    ffmpeg_name = "ffmpeg.exe" if sys.platform == 'win32' else "ffmpeg"
+    
     possible_dirs = []
+    
+    # Platform-specific paths
+    if sys.platform == 'darwin':
+        # macOS: Check Homebrew locations first
+        possible_dirs.append(Path('/opt/homebrew/bin'))  # Apple Silicon
+        possible_dirs.append(Path('/usr/local/bin'))      # Intel Mac
     
     # 1. Installed location: C:\Program Files\Canto-beats
     install_dir = Path(__file__).parent.parent.parent.parent
@@ -36,12 +45,18 @@ def _setup_ffmpeg_path():
         possible_dirs.append(Path(sys.executable).parent)
     
     for dir_path in possible_dirs:
-        ffmpeg_path = dir_path / "ffmpeg.exe"
+        ffmpeg_path = dir_path / ffmpeg_name
         if ffmpeg_path.exists():
             dir_str = str(dir_path)
-            if dir_str.lower() not in os.environ["PATH"].lower():
-                os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
-                logger.info(f"Added FFmpeg directory to PATH: {dir_str}")
+            # On Windows, PATH comparison is case-insensitive
+            if sys.platform == 'win32':
+                if dir_str.lower() not in os.environ["PATH"].lower():
+                    os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
+                    logger.info(f"Added FFmpeg directory to PATH: {dir_str}")
+            else:
+                if dir_str not in os.environ["PATH"]:
+                    os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
+                    logger.info(f"Added FFmpeg directory to PATH: {dir_str}")
             return True
     return False
 

@@ -97,7 +97,7 @@ class IntegrityChecker:
         return True, "OK"
     
     def detect_debugger(self) -> bool:
-        """Detect if a debugger is attached."""
+        """Detect if a debugger is attached (cross-platform)."""
         # Windows-specific debugger detection
         if sys.platform == 'win32':
             try:
@@ -106,8 +106,24 @@ class IntegrityChecker:
             except Exception:
                 pass
         
-        # Check for common debugging environment variables
-        debug_vars = ['PYDEVD_USE_FRAME_EVAL', 'PYCHARM_DEBUG']
+        # macOS/Linux: Check ptrace status
+        elif sys.platform in ('darwin', 'linux'):
+            try:
+                # On macOS/Linux, being traced shows in /proc/self/status
+                # or we can check if P_TRACED flag is set
+                import subprocess
+                result = subprocess.run(
+                    ['ps', '-p', str(os.getpid()), '-o', 'stat='],
+                    capture_output=True, text=True, timeout=2
+                )
+                # 'T' in stat indicates traced/stopped
+                if 'T' in result.stdout:
+                    return True
+            except Exception:
+                pass
+        
+        # Check for common debugging environment variables (cross-platform)
+        debug_vars = ['PYDEVD_USE_FRAME_EVAL', 'PYCHARM_DEBUG', 'DEBUGGER_ATTACHED']
         for var in debug_vars:
             if os.environ.get(var):
                 return True

@@ -708,7 +708,7 @@ class StyleProcessor:
 
     def _translate_with_ai(self, text: str) -> str:
         """
-        Translate using dictionary-first approach, fallback to AI model.
+        Hybrid translation strategy: Dictionary → Qwen LLM → MarianMT.
         
         Args:
             text: English text to translate
@@ -716,35 +716,67 @@ class StyleProcessor:
         Returns:
             Translated Chinese text, or original if translation fails
         """
-        # OPTIMIZATION: Try dictionary first (much faster)
+        # === LAYER 1: Dictionary (fastest, 100% accurate) ===
         dict_result = self._dictionary_translate(text)
         if dict_result != text:
-            # Found in dictionary, return immediately
-            logger.info(f"Dictionary translated: '{text}' -> '{dict_result}'")
+            logger.info(f"[Dictionary] '{text}' -> '{dict_result}'")
             return dict_result
         
-        # Dictionary didn't have it, use AI model
+        # === LAYER 2: Qwen LLM (smart, context-aware) ===
+        # Only use if already loaded (from Cantonese correction stage)
+        if self.llm_processor is not None and self.llm_processor._model_a is not None:
+            try:
+                prompt = f"""將以下英文翻譯成繁體中文。只輸出翻譯結果，不要解釋。
+
+英文：{text}
+繁體中文："""
+                
+                result = self.llm_processor._generate(
+                    prompt,
+                    self.llm_processor._model_a,
+                    self.llm_processor._tokenizer_a,
+                    max_new_tokens=128,
+                    temperature=0  # Deterministic output
+                )
+                
+                # Clean up result
+                if result:
+                    result = result.strip()
+                    # Remove common prefixes
+                    for prefix in ['繁體中文：', '翻譯：', '結果：']:
+                        if result.startswith(prefix):
+                            result = result[len(prefix):].strip()
+                    
+                    if result and result != text:
+                        logger.info(f"[Qwen LLM] '{text}' -> '{result}'")
+                        # Cache for future use
+                        self.translation_cache[text.lower()] = result
+                        return result
+                        
+            except Exception as e:
+                logger.warning(f"Qwen translation failed: {e}")
+        
+        # === LAYER 3: MarianMT (fallback) ===
         try:
             if not self.translation_model:
-                logger.info("Initializing Translation Model...")
-                # Lazy import to avoid triggering transformers at startup
+                logger.info("Initializing MarianMT Translation Model...")
                 from models.translation_model import TranslationModel
                 self.translation_model = TranslationModel(self.config)
             
             result = self.translation_model.translate(text)
             
-            # Validate result
             if result and result.strip() and result != text:
-                logger.info(f"AI translated: '{text}' -> '{result}'")
+                logger.info(f"[MarianMT] '{text}' -> '{result}'")
+                # Cache for future use
+                self.translation_cache[text.lower()] = result
                 return result
             else:
-                logger.warning(f"AI translation returned empty or same, keeping original")
+                logger.warning(f"MarianMT returned empty or same, keeping original")
                 return text
                 
         except Exception as e:
-            logger.error(f"AI translation failed: {e}", exc_info=True)
-            logger.warning("Falling back to dictionary translation")
-            return self._dictionary_translate(text)
+            logger.error(f"MarianMT failed: {e}", exc_info=True)
+            return text
     
     def _dictionary_translate(self, text: str) -> str:
         """

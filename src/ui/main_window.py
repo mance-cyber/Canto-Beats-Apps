@@ -748,6 +748,7 @@ class MainWindow(QMainWindow):
         self.video_player.setObjectName("videoPlayerContainer")
         self.video_player.position_changed.connect(self._on_player_position_changed)
         self.video_player.duration_changed.connect(self._on_player_duration_changed)
+        self.video_player.load_video_requested.connect(self._open_file)
         
         # Timeline Editor
         self.timeline = TimelineEditor()

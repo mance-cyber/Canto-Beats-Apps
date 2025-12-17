@@ -8,6 +8,11 @@ on:
         required: false
         default: false
         type: boolean
+      notarize:
+        description: 'Notarize (requires APPLE secrets)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build-macos:
@@ -80,6 +85,32 @@ jobs:
           hdiutil create -volname "Canto-beats" -srcfolder dist/dmg -ov -format UDZO dist/Canto-beats-macOS.dmg
           echo "=== DMG Created ==="
           ls -lh dist/Canto-beats-macOS.dmg
+      
+      - name: Import Developer ID Certificate
+        if: ${{ inputs.notarize }}
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE }}
+          CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+        run: |
+          echo $CERTIFICATE_BASE64 | base64 --decode > certificate.p12
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+          rm certificate.p12
+      
+      - name: Code Sign and Notarize
+        if: ${{ inputs.notarize }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          python notarize_macos.py
+          # Replace unsigned DMG with notarized version
+          mv dist/Canto-beats-macOS-Notarized.dmg dist/Canto-beats-macOS.dmg
       
       - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
