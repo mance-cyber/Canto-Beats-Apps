@@ -470,3 +470,69 @@ documentation_sync = true  # 强制文档同步
 - `MACOS_TECHNICAL_NOTES.md`: 新增技术细节文档
 - `MACOS_QUICK_START.md`: 新增快速开始指南
 - `PACKAGING_COMPARISON.md`: 新增跨平台打包对比
+
+---
+
+## 🍎 Apple Silicon 性能优化分析 (2025-01-XX 新增)
+
+### 核心文档
+- `APPLE_SILICON_OPTIMIZATION_REPORT.md` - 完整优化机会分析报告（5 大优化领域）
+- `APPLE_SILICON_OPTIMIZATION_CHECKLIST.md` - 分阶段实施清单（3 个 Phase）
+- `apply_apple_silicon_fixes.py` - 自动化修复脚本（一键应用关键修复）
+- `test_apple_silicon_performance.py` - 性能验证测试（4 项测试）
+
+### 关键发现
+1. **MPS VRAM 检测缺陷** - 统一内存被误判为 0 VRAM，导致性能降级到 CPU_ONLY tier
+2. **LLM 未使用 MPS** - Qwen2.5 模型回退到 CPU，推理速度慢 5-10x
+3. **VideoToolbox 未充分利用** - 视频编码仍使用软件编码（libx264）
+4. **音频处理可优化** - 可使用 Accelerate.framework 替代 NumPy
+5. **图像渲染可加速** - Core Image GPU 渲染比 PIL 快 5-10x
+
+### 优化优先级矩阵
+```
+┌────────────────────────┬──────────┬──────────┬──────────┬──────────┐
+│      优化项目          │ 影响范围 │ 实现难度 │ 性能提升 │ 优先级   │
+├────────────────────────┼──────────┼──────────┼──────────┼──────────┤
+│ 1. MPS VRAM 检测修复   │ 全局     │ 🟢 低    │ ⭐⭐⭐⭐⭐ │ 🔥 立即  │
+│ 2. LLM MPS 加速        │ LLM 推理 │ 🟡 中    │ ⭐⭐⭐⭐⭐ │ 🔥 高    │
+│ 3. VideoToolbox 编码   │ 视频导出 │ 🟢 低    │ ⭐⭐⭐⭐   │ 🔥 高    │
+│ 4. Accelerate 音频     │ 音频处理 │ 🟡 中    │ ⭐⭐⭐     │ 🟡 中    │
+│ 5. Core Image 绘图     │ UI 渲染  │ 🔴 高    │ ⭐⭐⭐     │ 🟡 中    │
+│ 6. MPS 批量推理        │ ASR 吞吐 │ 🟡 中    │ ⭐⭐       │ 🟢 低    │
+└────────────────────────┴──────────┴──────────┴──────────┴──────────┘
+```
+
+### 预期总体收益
+```
+┌──────────────────┬──────────┬──────────┬──────────┐
+│      指标        │ 优化前   │ 优化后   │ 提升     │
+├──────────────────┼──────────┼──────────┼──────────┤
+│ LLM 推理速度     │ 20s/句   │ 2-4s/句  │ 5-10x    │
+│ 视频编码速度     │ 0.5x 实时│ 2-3x 实时│ 4-6x     │
+│ 音频处理速度     │ 1.0x     │ 2-3x     │ 2-3x     │
+│ GPU 利用率       │ 10-20%   │ 60-80%   │ 3-4x     │
+│ 功耗（平均）     │ 25W      │ 15W      │ -40%     │
+└──────────────────┴──────────┴──────────┴──────────┘
+```
+
+### 实施路线图
+- **Phase 1 (1-2 天)**: 修复 MPS VRAM 检测 + 启用 LLM MPS
+- **Phase 2 (1 周)**: VideoToolbox 编码 + Accelerate 音频
+- **Phase 3 (2 周)**: Core Image 渲染 + MPS 批量推理
+
+### 技术债务警告
+1. 硬编码 CUDA 假设 - 多处代码假设 GPU = CUDA
+2. 缺少设备抽象层 - 没有统一的设备管理接口
+3. 量化配置混乱 - `bitsandbytes` 仅支持 CUDA，MPS 需要其他方案
+
+### 快速开始
+```bash
+# 1. 预览修复（不修改文件）
+python apply_apple_silicon_fixes.py --dry-run
+
+# 2. 应用修复
+python apply_apple_silicon_fixes.py --apply
+
+# 3. 验证效果
+python test_apple_silicon_performance.py
+```

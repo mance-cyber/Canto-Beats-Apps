@@ -7,9 +7,30 @@ from PySide6.QtWidgets import (
     QLineEdit, QPushButton, QTextEdit, QMessageBox,
     QGroupBox, QProgressBar
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QThread, Signal
 from PySide6.QtGui import QFont, QIcon
 from core.license_manager import LicenseManager, MachineFingerprint
+
+
+class ActivationWorker(QThread):
+    """Worker thread for license activation to prevent UI hang"""
+    finished = Signal(bool, str)
+    
+    def __init__(self, license_manager, key, force_transfer=False):
+        super().__init__()
+        self.license_manager = license_manager
+        self.key = key
+        self.force_transfer = force_transfer
+        
+    def run(self):
+        try:
+            success, message = self.license_manager.activate_license(
+                self.key, 
+                force_transfer=self.force_transfer
+            )
+            self.finished.emit(success, message)
+        except Exception as e:
+            self.finished.emit(False, str(e))
 
 
 class LicenseDialog(QDialog):
@@ -80,7 +101,7 @@ class LicenseDialog(QDialog):
         machine_info.setStyleSheet("color: #666;")
         machine_layout.addWidget(machine_info)
         
-        help_text = QLabel("[!] License will be bound to this machine, max 1 transfer")
+        help_text = QLabel("[!] 授權將會綁定此機器，最多可轉移 1 次")
         help_text.setStyleSheet("color: #f39c12; font-size: 10pt;")
         help_text.setWordWrap(True)
         machine_layout.addWidget(help_text)
@@ -109,7 +130,7 @@ class LicenseDialog(QDialog):
         
         
         # Add purchase button on the left - Highly visible with gradient
-        purchase_btn = QPushButton("Buy Now")
+        purchase_btn = QPushButton("立即購買")
         purchase_btn.clicked.connect(self.open_purchase_page)
         purchase_btn.setMinimumHeight(45)
         purchase_btn.setCursor(Qt.PointingHandCursor)
@@ -304,18 +325,26 @@ class LicenseDialog(QDialog):
             self.log_status(f"[ERROR] {message}")
             self.activate_btn.setEnabled(False)
     
-    def activate_license(self):
-        """Activate the license"""
+    def activate_license(self, force_transfer: bool = False):
+        """Activate the license using a background thread"""
         key = self.key_input.text().strip()
         
         if not key:
             QMessageBox.warning(self, "錯誤", "請輸入序號")
             return
         
-        self.log_status(f"啟用序號...")
+        # Disable UI
+        self.set_ui_enabled(False)
+        self.log_status(f"正在與服務器聯繫... 請稍候")
         
-        # Try activation
-        success, message = self.license_manager.activate_license(key, force_transfer=False)
+        # Start worker thread
+        self.worker = ActivationWorker(self.license_manager, key, force_transfer)
+        self.worker.finished.connect(self.on_activation_finished)
+        self.worker.start()
+
+    def on_activation_finished(self, success, message):
+        """Handle activation result from background thread"""
+        self.set_ui_enabled(True)
         
         if success:
             self.log_status(f"[OK] {message}")
@@ -329,6 +358,7 @@ class LicenseDialog(QDialog):
         else:
             # Check if it's a transfer issue
             if "已在其他機器啟用" in message:
+                self.log_status(f"[!] {message}")
                 # Ask user if they want to transfer
                 reply = QMessageBox.question(
                     self,
@@ -339,18 +369,17 @@ class LicenseDialog(QDialog):
                 )
                 
                 if reply == QMessageBox.Yes:
-                    # Force transfer
-                    success, message = self.license_manager.activate_license(key, force_transfer=True)
-                    if success:
-                        self.log_status(f"[OK] {message}")
-                        QMessageBox.information(self, "成功", "授權已轉移到本機！")
-                        self.accept()
-                    else:
-                        self.log_status(f"[ERROR] {message}")
-                        QMessageBox.critical(self, "錯誤", message)
+                    # Recursive call but force transfer
+                    self.activate_license(force_transfer=True)
             else:
                 self.log_status(f"[ERROR] {message}")
                 QMessageBox.critical(self, "錯誤", message)
+
+    def set_ui_enabled(self, enabled):
+        """Enable or disable UI elements during background work"""
+        self.key_input.setEnabled(enabled)
+        self.activate_btn.setEnabled(enabled)
+        self.setCursor(Qt.ArrowCursor if enabled else Qt.WaitCursor)
 
     def open_purchase_page(self):
         """Open purchase page in browser."""

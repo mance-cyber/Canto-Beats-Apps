@@ -38,8 +38,8 @@ class StyleProcessor:
         
         # Initialize OpenCC for S2T conversion
         if HAS_OPENCC:
-            self.s2t_converter = OpenCC('s2t')  # Simplified to Traditional
-            logger.info("OpenCC S2T converter initialized")
+            self.s2t_converter = OpenCC('s2hk')  # Simplified to Traditional (Hong Kong)
+            logger.info("OpenCC S2HK converter initialized")
         else:
             self.s2t_converter = None
             logger.warning("OpenCC not available, S2T conversion disabled")
@@ -185,45 +185,158 @@ class StyleProcessor:
 
     def _batch_ai_convert(self, segments: List[Dict], style: str, progress_callback=None) -> Dict[int, str]:
         """
-        Batch convert segments using AI (Transformers Qwen2.5-3B).
+        Batch convert segments using AI.
+        Priority: MLX Qwen (Apple Silicon) > Transformers Qwen (fallback)
         Returns dict of {index: converted_text}.
         """
         result = {}
         batch_size = 5
         
-        # Initialize LLM if needed
+        # Initialize LLM if needed - auto-detect best backend
         if self.llm_processor is None:
             try:
-                from ui.download_dialog import check_and_download_model
-                from core.hardware_detector import HardwareDetector
-                from models.qwen_llm import QwenLLM
                 import gc
                 import torch
                 
-                # Clear VRAM before loading model
-                logger.info("Clearing VRAM before loading Qwen model...")
+                # Clear GPU memory before loading model
+                logger.info("Clearing GPU memory before loading Qwen model...")
                 gc.collect()
-                if torch.cuda.is_available():
+                if torch.backends.mps.is_available():
+                    torch.mps.empty_cache()
+                    logger.info("MPS memory cleared")
+                elif torch.cuda.is_available():
                     torch.cuda.empty_cache()
-                    torch.cuda.synchronize()
-                    logger.info("VRAM cleared")
+                    logger.info("CUDA memory cleared")
                 
-                detector = HardwareDetector()
-                profile = detector.detect()
+                # Auto-detect hardware and get best backend
+                from utils.qwen_mlx import get_qwen_for_hardware, MLXQwenLLM
                 
-                model_ready = check_and_download_model(
-                    profile.llm_a_model,
-                    profile.llm_a_quantization,
-                    parent=None
-                )
+                hw_config = get_qwen_for_hardware()
+                logger.info(f"🔍 Hardware detection: {hw_config['description']}")
                 
-                if not model_ready:
-                    logger.warning("Model not ready, using dictionary")
-                    return result
-                
-                self.llm_processor = QwenLLM(self.config, profile)
-                self.llm_processor.load_models()
-                logger.info("Qwen2.5-3B loaded for batch processing")
+                if hw_config['backend'] == 'mlx':
+                    # Use MLX Qwen (Apple Silicon optimized)
+                    from utils.qwen_mlx import MLXQwenLLM
+                    from huggingface_hub import try_to_load_from_cache
+                    
+                    model_id = hw_config['model_id']
+                    
+                    # Check if model is cached
+                    cache_result = try_to_load_from_cache(model_id, "config.json")
+                    model_cached = cache_result is not None
+                    
+                    if not model_cached:
+                        # Show download confirmation dialog
+                        from PySide6.QtWidgets import QMessageBox, QApplication
+                        from ui.download_dialog import ModelDownloadDialog
+                        
+                        # Get parent window
+                        parent = None
+                        app = QApplication.instance()
+                        if app:
+                            for widget in app.topLevelWidgets():
+                                if widget.isVisible():
+                                    parent = widget
+                                    break
+                        
+                        # Show confirmation
+                        msg = QMessageBox(parent)
+                        msg.setWindowTitle("下載 AI 書面語工具")
+                        msg.setIcon(QMessageBox.Information)
+                        msg.setText("需要下載 AI 書面語工具")
+                        msg.setInformativeText(
+                            "首次使用書面語功能需要下載 AI 模型 (約 6 GB)。\n"
+                            "下載時間視網絡速度而定 (約 2-5 分鐘)。\n\n"
+                            "是否繼續？"
+                        )
+                        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+                        msg.setDefaultButton(QMessageBox.Yes)
+                        
+                        if msg.exec() != QMessageBox.Yes:
+                            logger.info("User cancelled Qwen download")
+                            return result
+                        
+                        # Show download progress dialog
+                        logger.info(f"Downloading MLX Qwen model: {model_id}")
+                        download_dialog = ModelDownloadDialog(model_id, parent=parent)
+                        download_dialog.setWindowTitle("下載 AI 書面語工具")
+                        
+                        # Create worker for MLX Qwen download
+                        from ui.download_dialog import MLXWhisperDownloadWorker
+                        
+                        class MLXQwenDownloadWorker(MLXWhisperDownloadWorker):
+                            def run(self):
+                                try:
+                                    from huggingface_hub import snapshot_download
+                                    from tqdm import tqdm
+                                    
+                                    self.progress.emit(5, "正在連接伺服器...")
+                                    
+                                    class ProgressTqdm(tqdm):
+                                        def __init__(self_tqdm, *args, **kwargs):
+                                            super().__init__(*args, **kwargs)
+                                            self_tqdm.worker = self
+                                        
+                                        def update(self_tqdm, n=1):
+                                            super().update(n)
+                                            if self_tqdm.total and self_tqdm.total > 0:
+                                                percent = int((self_tqdm.n / self_tqdm.total) * 90) + 5
+                                                downloaded_mb = self_tqdm.n / (1024 * 1024)
+                                                total_mb = self_tqdm.total / (1024 * 1024)
+                                                msg = f"下載中... {downloaded_mb:.0f}MB / {total_mb:.0f}MB"
+                                                self_tqdm.worker.progress.emit(percent, msg)
+                                    
+                                    snapshot_download(repo_id=model_id, tqdm_class=ProgressTqdm)
+                                    
+                                    self.progress.emit(100, "下載完成")
+                                    self.finished.emit(True, "下載成功")
+                                    
+                                except Exception as e:
+                                    logger.error(f"MLX Qwen download failed: {e}")
+                                    self.finished.emit(False, f"下載失敗: {str(e)}")
+                        
+                        download_dialog.worker = MLXQwenDownloadWorker("bf16")
+                        download_dialog.worker.progress.connect(download_dialog._on_progress)
+                        download_dialog.worker.finished.connect(download_dialog._on_finished)
+                        download_dialog.worker.start()
+                        
+                        result_dialog = download_dialog.exec()
+                        
+                        if not download_dialog.was_successful():
+                            logger.warning("MLX Qwen download failed or cancelled")
+                            return result
+                        
+                        logger.info("✅ MLX Qwen download completed")
+                    
+                    # Now load the model
+                    self.llm_processor = MLXQwenLLM(model_id=model_id)
+                    self.llm_processor.load_model()
+                    self._using_mlx = True
+                    logger.info(f"⚡ {hw_config['description']} loaded")
+                else:
+                    # Use Transformers Qwen (MPS/CUDA/CPU)
+                    self._using_mlx = False
+                    from ui.download_dialog import check_and_download_model
+                    from core.hardware_detector import HardwareDetector
+                    from models.qwen_llm import QwenLLM
+                    
+                    detector = HardwareDetector()
+                    profile = detector.detect()
+                    
+                    model_ready = check_and_download_model(
+                        profile.llm_a_model,
+                        profile.llm_a_quantization,
+                        parent=None
+                    )
+                    
+                    if not model_ready:
+                        logger.warning("Model not ready, using dictionary")
+                        return result
+                    
+                    self.llm_processor = QwenLLM(self.config, profile)
+                    self.llm_processor.load_models()
+                    logger.info(f"✅ {hw_config['description']} loaded")
+                    
             except Exception as e:
                 logger.warning(f"LLM init failed: {e}")
                 return result
@@ -241,7 +354,7 @@ class StyleProcessor:
             
             # Combine texts with markers
             combined = "\n".join([f"{i+1}. {t}" for i, t in enumerate(batch_texts)])
-            
+
             # Professional prompt for thorough conversion (simplified - no English/number rules)
             prompt = f"""你是一位專業中文編輯與字幕轉寫師。你的任務是把「粵語口語字幕」徹底轉譯成「自然流暢的書面中文」。
 
@@ -249,6 +362,7 @@ class StyleProcessor:
 - 完全書面化：把口語、粵語語氣詞、口頭禪、潮語改成正式書面表達。
 - 不改意思：保留原句資訊、語氣強弱，但用書面語呈現。
 - 適合做字幕：句子要簡潔、易讀、自然。
+- **英文必須保留**：所有英文單詞、品牌、人名、術語等，絕對不要翻譯成中文。
 
 【轉譯規則】
 1. 移除/改寫粵語語氣詞與填充詞：如「喎、啦、囉、咩、㗎、吓、呀、喇、啫」等。
@@ -257,12 +371,18 @@ class StyleProcessor:
 4. 不要添加新資訊、不要解釋、不要評論。
 5. 只輸出轉譯後文字，保持編號格式。
 6. 保守轉換：如果唔確定，保留原詞，唔好猜測或創造新詞。
-7. 英文保留：所有英文（人名、品牌、術語）直接保留，唔好翻譯。
+7. **英文必須保留**：所有英文單詞、人名、品牌、術語、數字等，一律保持原樣，絕對不要翻譯成中文。
 
 【常見轉換】
 係→是、喺→在、唔→不、冇→沒有、嘅→的、咗→了、嚟→來、佢→他/她
 好彩→幸運、頭先→剛才、琴日→昨天、聽日→明天、今日→今天、而家→現在
 個鐘→小時、蚊→元、即係→就是、點解→為什麼、乜嘢→什麼、邊度→哪裡
+
+【重要】英文保留範例：
+- "Apple" 保持 "Apple"，不要變成「蘋果」
+- "iPhone" 保持 "iPhone"，不要變成「愛瘋」
+- "CEO" 保持 "CEO"，不要變成「執行長」
+- "AI" 保持 "AI"，不要變成「人工智能」
 
 【風格】繁體中文書面語，清晰自然。嚴格度：最高，凡是口語化表達一律改成書面語。
 
@@ -272,13 +392,21 @@ class StyleProcessor:
 【輸出】（只輸出結果，保持編號）"""
             
             try:
-                response = self.llm_processor._generate(
-                    prompt, 
-                    self.llm_processor._model_a, 
-                    self.llm_processor._tokenizer_a,
-                    max_new_tokens=1024,
-                    temperature=0  # Zero temp for fully deterministic output
-                )
+                # Generate response - use correct method based on backend
+                if getattr(self, '_using_mlx', False):
+                    response = self.llm_processor.generate(
+                        prompt,
+                        max_tokens=1024,
+                        temperature=0
+                    )
+                else:
+                    response = self.llm_processor._generate(
+                        prompt, 
+                        self.llm_processor._model_a, 
+                        self.llm_processor._tokenizer_a,
+                        max_new_tokens=1024,
+                        temperature=0  # Zero temp for fully deterministic output
+                    )
                 
                 # === DEBUG: Log raw AI response ===
                 logger.info(f"=== RAW AI RESPONSE (Batch {batch_idx + 1}) ===")

@@ -19,7 +19,7 @@ GITHUB_REPO = "Canto-Beats-Apps"
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/latest"
 
 # Current app version
-CURRENT_VERSION = "1.0.0"
+CURRENT_VERSION = "1.0.0-macOS"
 
 
 @dataclass
@@ -76,14 +76,14 @@ class UpdateChecker:
             tag_name = data.get("tag_name", "0.0.0")
             server_version = tag_name.lstrip("v")
             
-            # Find EXE download URL from assets
+            # Find DMG download URL from assets (macOS)
             download_url = ""
             for asset in data.get("assets", []):
-                if asset.get("name", "").endswith(".exe"):
+                if asset.get("name", "").endswith(".dmg"):
                     download_url = asset.get("browser_download_url", "")
                     break
             
-            # If no EXE found, use release page
+            # If no DMG found, use release page
             if not download_url:
                 download_url = data.get("html_url", "")
             

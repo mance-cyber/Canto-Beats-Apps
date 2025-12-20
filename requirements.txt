@@ -11,14 +11,24 @@ torch>=2.5.1
 torchaudio>=2.5.1
 silero-vad>=4.0.0
 faster-whisper>=1.0.0
-llama-cpp-python>=0.2.0
+# llama-cpp-python - removed (not compatible with macOS ARM64)
 huggingface_hub>=0.19.0
+
+# Apple Silicon MLX (CoreML/Neural Engine acceleration)
+mlx>=0.5.0
+mlx-whisper>=0.1.0
 
 # Video & Audio Processing
 ffmpeg-python>=0.2.0
 pydub>=0.25.1
 librosa>=0.10.0
 soundfile>=0.12.1
+
+# macOS Native (for fast thumbnail extraction on Apple Silicon)
+pyobjc-framework-AVFoundation>=10.0  # Native video processing
+pyobjc-framework-Quartz>=10.0        # Image saving
+pyobjc-framework-AVKit>=10.0         # Native video playback (AVPlayer)
+pyobjc-framework-Cocoa>=10.0         # AppKit/Foundation
 
 # Data Processing
 numpy>=1.24.0
@@ -36,6 +46,7 @@ python-dotenv>=1.0.0
 Pillow>=10.0.0
 requests>=2.31.0
 cryptography>=41.0.0
+packaging>=21.0
 
 # Development Tools (Optional)
 pytest>=7.4.0
@@ -44,3 +55,8 @@ flake8>=6.0.0
 
 # Packaging
 pyinstaller>=6.0.0
+
+# macOS Apple Silicon 注意事項:
+# - PyTorch 需使用 CPU 版本 (MPS 內建支援)
+# - 安裝: pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+# - 需安裝 Homebrew 的 mpv 和 ffmpeg: brew install mpv ffmpeg

@@ -16,6 +16,62 @@ from utils.logger import setup_logger
 logger = setup_logger()
 
 
+class MLXWhisperDownloadWorker(QThread):
+    """Worker thread for downloading MLX Whisper models."""
+
+    progress = Signal(int, str)  # progress %, status message
+    finished = Signal(bool, str)  # success, message
+
+    def __init__(self, model_size: str = "large-v3"):
+        super().__init__()
+        self.model_size = model_size
+        self._cancelled = False
+
+    def run(self):
+        try:
+            from huggingface_hub import snapshot_download
+            from tqdm import tqdm
+
+            self.progress.emit(5, "準備下載...")
+            model_path = f"mlx-community/whisper-{self.model_size}-mlx"
+            
+            # Custom tqdm class to emit progress signals
+            class ProgressTqdm(tqdm):
+                def __init__(self_tqdm, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    self_tqdm.worker = self
+                
+                def update(self_tqdm, n=1):
+                    super().update(n)
+                    if self_tqdm.total and self_tqdm.total > 0:
+                        # Calculate percentage
+                        percent = int((self_tqdm.n / self_tqdm.total) * 90) + 10  # 10-100%
+                        # Format downloaded size
+                        downloaded_mb = self_tqdm.n / (1024 * 1024)
+                        total_mb = self_tqdm.total / (1024 * 1024)
+                        msg = f"下載中... {downloaded_mb:.1f}MB / {total_mb:.1f}MB"
+                        self_tqdm.worker.progress.emit(percent, msg)
+
+            snapshot_download(
+                repo_id=model_path,
+                allow_patterns=["*.safetensors", "*.json", "*.npz"],
+                tqdm_class=ProgressTqdm
+            )
+
+            if self._cancelled:
+                return
+
+            self.progress.emit(100, "下載完成")
+            self.finished.emit(True, "下載成功")
+
+        except Exception as e:
+            logger.error(f"MLX Whisper download failed: {e}")
+            self.finished.emit(False, f"下載失敗: {str(e)}")
+
+    def cancel(self):
+        self._cancelled = True
+
+
 class ModelDownloadWorker(QThread):
     """Worker thread for downloading models."""
     
@@ -32,27 +88,25 @@ class ModelDownloadWorker(QThread):
         try:
             from transformers import AutoModelForCausalLM, AutoTokenizer
             import torch
-            
-            self.progress.emit(10, f"正在連接 HuggingFace...")
-            
+
+            self.progress.emit(10, "AI 工具下載中...")
+
             # Load tokenizer first (smaller)
-            self.progress.emit(20, "正在下載 Tokenizer...")
             tokenizer = AutoTokenizer.from_pretrained(
                 self.model_id,
                 trust_remote_code=True
             )
-            
+
             if self._cancelled:
                 return
-            
-            # Load model (larger)
-            self.progress.emit(40, "正在下載模型...")
-            
+
+            self.progress.emit(50, "AI 工具下載中...")
+
             model_kwargs = {
                 "device_map": "auto",
                 "trust_remote_code": True,
             }
-            
+
             if self.quantization == "4bit":
                 try:
                     from transformers import BitsAndBytesConfig
@@ -69,20 +123,21 @@ class ModelDownloadWorker(QThread):
                 self.model_id,
                 **model_kwargs
             )
-            
-            self.progress.emit(90, "正在驗證模型...")
-            
+
             # Clean up
             del model
             del tokenizer
-            
+
             import gc
             gc.collect()
-            if torch.cuda.is_available():
+            # Cross-platform GPU memory cleanup
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+            elif torch.cuda.is_available():
                 torch.cuda.empty_cache()
-            
-            self.progress.emit(100, "下載完成!")
-            self.finished.emit(True, "模型下載成功")
+
+            self.progress.emit(100, "下載完成")
+            self.finished.emit(True, "下載成功")
             
         except Exception as e:
             logger.error(f"Model download failed: {e}")
@@ -145,10 +200,10 @@ class ModelDownloadDialog(QDialog):
             self._add_emoji_animation(layout)
         
         # Simple title
-        title = QLabel("AI 工具下載中...")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #FFFFFF;")
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
+        self.title_label = QLabel("AI 工具下載中...")
+        self.title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #FFFFFF;")
+        self.title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.title_label)
         
         # Status (hidden for clean UI)
         self.status_label = QLabel("")
@@ -241,9 +296,12 @@ class ModelDownloadDialog(QDialog):
         if success:
             self.status_label.setText("✓ " + message)
             self.status_label.setStyleSheet("font-size: 14px; color: #00FF00;")
-            self.cancel_btn.setText("完成")
-            self.cancel_btn.clicked.disconnect()
-            self.cancel_btn.clicked.connect(self.accept)
+            self.title_label.setText("✅ 下載完成！")
+            self.cancel_btn.hide()  # Hide button
+            
+            # Auto-close after 1 second
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(1000, self.accept)
         else:
             self.status_label.setText("✗ " + message)
             self.status_label.setStyleSheet("font-size: 14px; color: #FF6666;")

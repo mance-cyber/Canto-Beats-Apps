@@ -15,6 +15,7 @@ from models.whisper_asr import WhisperASR, TranscriptionSegment
 from models.vad_processor import VADProcessor
 from models.llama_corrector import LlamaCorrector
 from utils.audio_utils import AudioPreprocessor
+from utils.whisper_mlx import get_best_whisper_backend, MLXWhisperASR
 from utils.logger import setup_logger
 
 logger = setup_logger()
@@ -56,7 +57,8 @@ class TranscribeWorker(QThread):
             # 1. Initialize & Load Models (0-30%)
             self.progress.emit("正在加載 AI 模型...", 10)
             
-            self.asr = WhisperASR(self.config)
+            # Use best available Whisper backend (MLX on Apple Silicon, faster-whisper fallback)
+            self.asr = get_best_whisper_backend(self.config)
             self.vad = VADProcessor(self.config)
             
             # Load models

@@ -91,40 +91,57 @@ class QwenLLM:
             hf_logging.disable_progress_bar()
             
             device = self.profile.device
-            
+
             # Load LLM-A (always enabled)
             logger.info(f"Loading LLM-A: {self.model_a_id}...")
-            
-            # Determine quantization config based on VRAM
+
+            # Determine device map (support MPS)
+            def get_device_map(device: str):
+                if device == "cuda":
+                    return "auto"
+                elif device == "mps":
+                    return "mps"  # PyTorch 2.0+ native MPS support
+                else:
+                    return "cpu"
+
             model_a_kwargs = {
-                "device_map": "auto" if device == "cuda" else "cpu",
+                "device_map": get_device_map(device),
                 "trust_remote_code": True,
             }
-            
+
             quantization = self.profile.llm_a_quantization
             logger.info(f"Using quantization: {quantization}")
-            
-            if quantization == "4bit":
-                # DISABLED: 4bit quantization causes quality degradation
-                # Force fp16 for consistent quality (same as when bitsandbytes unavailable)
-                logger.info("Using FP16 precision (4bit disabled for quality)")
-                model_a_kwargs["torch_dtype"] = torch.float16 if device == "cuda" else torch.float32
-            elif quantization == "int8":
-                try:
-                    from transformers import BitsAndBytesConfig
-                    model_a_kwargs["quantization_config"] = BitsAndBytesConfig(
-                        load_in_8bit=True,
-                    )
-                    logger.info("Using INT8 quantization")
-                except ImportError:
-                    logger.warning("bitsandbytes not available, using full precision")
-                    model_a_kwargs["torch_dtype"] = torch.float16 if device == "cuda" else torch.float32
-            elif quantization == "fp16":
+
+            # Note: bitsandbytes quantization only works on CUDA
+            if device == "cuda":
+                if quantization == "4bit":
+                    # DISABLED: 4bit quantization causes quality degradation
+                    logger.info("Using FP16 precision (4bit disabled for quality)")
+                    model_a_kwargs["torch_dtype"] = torch.float16
+                elif quantization == "int8":
+                    try:
+                        from transformers import BitsAndBytesConfig
+                        model_a_kwargs["quantization_config"] = BitsAndBytesConfig(
+                            load_in_8bit=True,
+                        )
+                        logger.info("Using INT8 quantization")
+                    except ImportError:
+                        logger.warning("bitsandbytes not available, using FP16")
+                        model_a_kwargs["torch_dtype"] = torch.float16
+                elif quantization == "fp16":
+                    model_a_kwargs["torch_dtype"] = torch.float16
+                    logger.info("Using FP16 precision")
+                else:
+                    model_a_kwargs["torch_dtype"] = torch.float32
+                    logger.info("Using FP32 precision")
+            elif device == "mps":
+                # MPS: Use FP16 for best performance (no quantization support)
                 model_a_kwargs["torch_dtype"] = torch.float16
-                logger.info("Using FP16 precision")
+                logger.info("Using FP16 precision on MPS (Apple Silicon GPU)")
             else:
+                # CPU: Use FP32
                 model_a_kwargs["torch_dtype"] = torch.float32
-                logger.info("Using FP32 precision")
+                logger.info("Using FP32 precision on CPU")
             
             self._tokenizer_a = AutoTokenizer.from_pretrained(
                 self.model_a_id, 
@@ -221,9 +238,14 @@ class QwenLLM:
         )
         
         inputs = tokenizer([text], return_tensors="pt")
-        if self.profile.device == "cuda":
-            inputs = inputs.to("cuda")
-        
+
+        # Move inputs to correct device (move each tensor individually)
+        device = self.profile.device
+        if device == "cuda":
+            inputs = {k: v.to("cuda") for k, v in inputs.items()}
+        elif device == "mps":
+            inputs = {k: v.to("mps") for k, v in inputs.items()}
+
         with torch.no_grad():
             # Use greedy decoding when temperature=0 (no sampling parameters)
             if temperature <= 0:

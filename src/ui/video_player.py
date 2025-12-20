@@ -1,5 +1,8 @@
 """
-Video Player widget using python-mpv.
+Video Player widget with Apple AVPlayer priority.
+
+On macOS Apple Silicon: Uses native AVPlayer for optimal performance
+Fallback: Uses python-mpv
 """
 
 import os
@@ -18,6 +21,17 @@ from utils.logger import setup_logger
 from core.path_setup import get_icon_path
 
 logger = setup_logger()
+
+# Try to import AVPlayer first (macOS Apple Silicon priority)
+HAS_AVPLAYER = False
+if sys.platform == 'darwin':
+    try:
+        from ui.avplayer_widget import AVPlayerWidget, is_avplayer_available
+        HAS_AVPLAYER = is_avplayer_available()
+        if HAS_AVPLAYER:
+            logger.info("🍎 AVPlayer available - will use native Apple video playback")
+    except ImportError as e:
+        logger.warning(f"AVPlayer widget not available: {e}")
 
 # Try to import mpv
 # CRITICAL: python-mpv uses ctypes.util.find_library() which on Windows
@@ -233,7 +247,7 @@ class VideoPlayer(QWidget):
         # Video container
         self.video_container = QFrame()
         self.video_container.setStyleSheet("background-color: #000;")
-        self.video_container.setMinimumHeight(400)
+        self.video_container.setMinimumHeight(100)  # Allow responsive sizing
         
         # Create a layout for the video container to hold the load button overlay
         video_container_layout = QVBoxLayout(self.video_container)
@@ -242,8 +256,15 @@ class VideoPlayer(QWidget):
         # Load video button overlay (shown when no video is loaded)
         self.load_video_overlay = QFrame()
         self.load_video_overlay.setStyleSheet("background-color: transparent;")
+        
+        # Use nested layouts to center button both vertically and horizontally
         load_overlay_layout = QVBoxLayout(self.load_video_overlay)
-        load_overlay_layout.setAlignment(Qt.AlignCenter)
+        load_overlay_layout.setContentsMargins(0, 0, 0, 0)
+        load_overlay_layout.addStretch(1)  # Top stretch
+        
+        # Horizontal centering layout
+        h_layout = QHBoxLayout()
+        h_layout.addStretch(1)  # Left stretch
         
         self.load_video_btn = QPushButton("加載影片")
         self.load_video_btn.setStyleSheet("""
@@ -266,7 +287,11 @@ class VideoPlayer(QWidget):
         """)
         self.load_video_btn.setCursor(Qt.PointingHandCursor)
         self.load_video_btn.clicked.connect(self.load_video_requested.emit)
-        load_overlay_layout.addWidget(self.load_video_btn, alignment=Qt.AlignCenter)
+        h_layout.addWidget(self.load_video_btn)
+        
+        h_layout.addStretch(1)  # Right stretch
+        load_overlay_layout.addLayout(h_layout)
+        load_overlay_layout.addStretch(1)  # Bottom stretch
         
         video_container_layout.addWidget(self.load_video_overlay)
         
@@ -660,3 +685,183 @@ class VideoPlayer(QWidget):
     def has_video(self) -> bool:
         """Check if a video is currently loaded"""
         return self._has_video
+
+
+def create_video_player(parent=None):
+    """
+    Create the best available video player for the current platform.
+    
+    Priority:
+    1. AVPlayer (macOS Apple Silicon) - native hardware acceleration
+    2. mpv - cross-platform fallback
+    
+    Args:
+        parent: Parent widget
+        
+    Returns:
+        VideoPlayer widget (either AVPlayer-based or mpv-based)
+    """
+    if HAS_AVPLAYER:
+        logger.info("🍎 Creating AVPlayer-based video player (Apple native)")
+        from ui.avplayer_widget import AVPlayerWidget
+        
+        # Create a wrapper that provides the same interface as VideoPlayer
+        class AVPlayerVideoPlayer(VideoPlayer):
+            """VideoPlayer using AVPlayer backend."""
+            
+            def __init__(self, parent=None):
+                # Initialize the base class UI but skip mpv init
+                QWidget.__init__(self, parent)
+                
+                self.mpv_player = None  # No mpv
+                self.duration = 0.0
+                self.is_playing = False
+                self.is_seeking = False
+                self._has_video = False
+                
+                # Create AVPlayer widget
+                self._avplayer = AVPlayerWidget()
+                
+                # Connect signals
+                self._avplayer.position_changed.connect(self._on_av_position_changed)
+                self._avplayer.duration_changed.connect(self._on_av_duration_changed)
+                self._avplayer.state_changed.connect(self._on_av_state_changed)
+                self._avplayer.video_loaded.connect(self._on_av_video_loaded)
+                
+                self._init_ui()
+
+                # Set AVPlayer as background layer (not in layout)
+                self._avplayer.setParent(self.video_container)
+                self._avplayer.lower()  # Send to back
+
+                # Make overlay stay on top
+                self.load_video_overlay.raise_()
+                
+                # Timer for position updates
+                self.update_timer = QTimer(self)
+                self.update_timer.setInterval(33)
+                self.update_timer.timeout.connect(self._update_position)
+
+            def resizeEvent(self, event):
+                """Resize AVPlayer to fill video_container."""
+                super().resizeEvent(event)
+                if hasattr(self, '_avplayer'):
+                    self._avplayer.setGeometry(self.video_container.rect())
+
+            def _on_av_position_changed(self, time: float):
+                self.position_changed.emit(time)
+            
+            def _on_av_duration_changed(self, duration: float):
+                self.duration = duration
+                self.duration_changed.emit(duration)
+                self._update_time_label()
+            
+            def _on_av_state_changed(self, is_playing: bool):
+                self.is_playing = is_playing
+                self.state_changed.emit(is_playing)
+            
+            def _on_av_video_loaded(self, success: bool):
+                self._has_video = success
+                self.video_loaded.emit(success)
+                if success:
+                    self.load_video_overlay.hide()
+            
+            def _init_mpv(self):
+                """Override - no mpv initialization."""
+                pass
+            
+            def load_video(self, file_path: str):
+                """Load video using AVPlayer."""
+                if self._avplayer.load_video(file_path):
+                    self.duration = self._avplayer.duration
+                    self._has_video = True  # 設置 _has_video
+                    self._update_time_label(0, self.duration)
+                    self.seek_slider.setValue(0)
+                    self.load_video_overlay.hide()  # 隱藏加載按鈕
+            
+            def toggle_playback(self):
+                """Toggle playback."""
+                self._avplayer.toggle_playback()
+                if self._avplayer.is_playing:
+                    self.update_timer.start()
+                    logger.info(f"[AVPlayer] Timer started, interval={self.update_timer.interval()}ms")
+                else:
+                    self.update_timer.stop()
+                    logger.info("[AVPlayer] Timer stopped")
+            
+            def seek(self, time_seconds: float):
+                """Seek to time."""
+                self._avplayer.seek(time_seconds)
+            
+            def skip(self, seconds: float):
+                """Skip forward/backward."""
+                self._avplayer.skip(seconds)
+            
+            def load_subtitle(self, file_path: str):
+                """Load subtitle file."""
+                self._avplayer.load_subtitle(file_path)
+            
+            def refresh_subtitle(self):
+                """Force refresh subtitle display at current time."""
+                if hasattr(self._avplayer, 'refresh_subtitle'):
+                    self._avplayer.refresh_subtitle()
+            
+            def _update_position(self):
+                """Update position UI."""
+                if self.is_seeking or not self._has_video:
+                    return
+
+                current_time = self._avplayer.get_current_time()
+
+                self.seek_slider.blockSignals(True)
+                if self.duration > 0:
+                    pos = int((current_time / self.duration) * 1000)
+                    self.seek_slider.setValue(pos)
+                self.seek_slider.blockSignals(False)
+
+                self._update_time_label(current_time)
+                self.position_changed.emit(current_time)  # 發送信號給 timeline
+
+                # 每秒打印一次調試信息
+                if int(current_time) % 1 == 0:
+                    logger.debug(f"[AVPlayer] Position: {current_time:.1f}s, emitting signal")
+            
+            def _toggle_mute(self):
+                """Toggle mute."""
+                self._avplayer.set_muted(not self._avplayer.is_muted())
+                is_muted = self._avplayer.is_muted()
+                
+                icon_name = "volume-x" if is_muted else "volume"
+                icon_path = get_icon_path(icon_name)
+                if os.path.exists(icon_path):
+                    self.volume_btn.setIcon(QIcon(icon_path))
+                
+                if is_muted:
+                    self.volume_btn.setStyleSheet("background-color: #ef4444; color: white;")
+                else:
+                    self.volume_btn.setStyleSheet("")
+            
+            def _toggle_loop(self):
+                """Toggle loop."""
+                is_looping = self.loop_btn.isChecked()
+                self._avplayer.set_looping(is_looping)
+                
+                style = "background-color: #06b6d4; color: white;" if is_looping else ""
+                self.loop_btn.setStyleSheet(style)
+            
+            def _adjust_volume(self, increase: bool):
+                """Adjust volume."""
+                current = self._avplayer.get_volume() * 100
+                step = 5 if increase else -5
+                new_vol = max(0, min(100, current + step))
+                self._avplayer.set_volume(new_vol / 100)
+                
+                self.volume_btn.setToolTip(f"音量: {int(new_vol)}% (點擊靜音 / 滾輪調整)")
+                
+                if increase and self._avplayer.is_muted():
+                    self._toggle_mute()
+        
+        return AVPlayerVideoPlayer(parent)
+    else:
+        logger.info("Using mpv-based video player")
+        return VideoPlayer(parent)

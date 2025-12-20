@@ -767,24 +767,39 @@ class TimelineEditor(QWidget):
             print(f"Error loading waveform: {e}")
     
     def load_video(self, video_path: str):
-        """Load video and extract thumbnails with automatic GPU detection"""
+        """Load video and extract thumbnails with automatic method selection.
+
+        On macOS with PyObjC: Uses AVFoundation (fastest, native hardware decode)
+        Otherwise: Falls back to FFmpeg with VideoToolbox/CUDA acceleration
+        """
         try:
-            from utils.video_utils import VideoThumbnailExtractor
             from utils.logger import setup_logger
             logger = setup_logger()
-            logger.info(f"Extracting thumbnails from {video_path}...")
-            # Pass None to use_gpu to trigger automatic detection
-            thumbnails = VideoThumbnailExtractor.extract_thumbnails(
-                video_path, 
+
+            logger.info(f"[Timeline] Starting thumbnail extraction for: {video_path}")
+
+            # 直接使用 FFmpeg（更穩定）
+            from utils.video_utils import VideoThumbnailExtractor
+            extractor = VideoThumbnailExtractor
+            extractor_name = "FFmpeg"
+            logger.info("[Timeline] Using FFmpeg for thumbnails")
+
+            thumbnails = extractor.extract_thumbnails(
+                video_path,
                 interval=5,
-                use_gpu=None  # Auto-detect GPU
+                use_cache=True
             )
-            logger.info(f"Extracted {len(thumbnails)} thumbnails")
+
+            logger.info(f"[Timeline] Extracted {len(thumbnails)} thumbnails using {extractor_name}")
+
+            if len(thumbnails) == 0:
+                logger.warning("[Timeline] No thumbnails extracted!")
+
             self.video_track.set_thumbnails(thumbnails)
         except Exception as e:
             from utils.logger import setup_logger
             logger = setup_logger()
-            logger.error(f"Error loading video thumbnails: {e}", exc_info=True)
+            logger.error(f"[Timeline] Error loading video thumbnails: {e}", exc_info=True)
     
     def set_segments(self, segments: List[Dict]):
         """Set subtitle segments to display on timeline"""

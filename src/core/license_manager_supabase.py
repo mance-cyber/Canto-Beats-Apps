@@ -258,37 +258,52 @@ class LicenseValidator:
     def verify(self) -> Tuple[bool, str]:
         """
         Verify current license status
-        
+
         Returns:
             Tuple of (is_valid, message)
         """
         cached = self._load_cache()
         if cached is None:
+            print("[LICENSE] No cached license found")
             return (False, "未找到授權")
-        
+
+        print(f"[LICENSE] Found cached license: {cached.license_key[:8]}...")
+
         # Check machine fingerprint
         current_fingerprint = MachineFingerprint.generate()
+        print(f"[LICENSE] Current fingerprint: {current_fingerprint[:16]}...")
+        print(f"[LICENSE] Cached fingerprint: {cached.machine_fingerprint[:16]}...")
+
         if cached.machine_fingerprint != current_fingerprint:
+            print("[LICENSE] Machine fingerprint mismatch!")
             return (False, "機器指紋不符")
-        
+
+        print("[LICENSE] Fingerprint match, verifying online...")
+
         # Try online verification
         success, result = self.supabase_client.verify(
             cached.license_key, current_fingerprint
         )
-        
+
+        print(f"[LICENSE] Online verification result: success={success}, result={result}")
+
         if success:
             # Update cache with new verification time
             cached.last_verified_online = int(time.time())
             self._save_cache(cached)
+            print("[LICENSE] ✅ License valid (online)")
             return (True, "授權有效（在線驗證）")
-        
+
         # Handle offline mode
         if result.get('offline'):
             if self._is_cache_valid(cached):
                 days_remaining = OFFLINE_CACHE_DAYS - self._days_since_verification(cached)
+                print(f"[LICENSE] ✅ License valid (offline, {days_remaining:.1f} days remaining)")
                 return (True, f"離線模式：授權有效（剩餘 {days_remaining:.1f} 天）")
+            print("[LICENSE] ❌ Offline cache expired")
             return (False, "離線緩存已過期，請連接網絡")
-        
+
+        print(f"[LICENSE] ❌ Verification failed: {result.get('message')}")
         return (False, result.get('message', '授權無效'))
     
     def _save_cache(self, license_info: LicenseInfo):

@@ -72,25 +72,36 @@ class TranscribeWorkerV2(QObject):
                     return
                 if pct <= 15:
                     if self.is_first_time:
-                        msg = "首次下載 AI 模型中，請稍候（約 5-10 分鐘）..."
+                        msg = "首次下載 AI 工具中，請稍候（約 5-10 分鐘）..."
                     else:
-                        msg = "正在加載 AI 模型..."
+                        msg = "正在加載 AI 工具..."
                 elif pct <= 25:
                     msg = "正在提取音頻..."
                 elif pct < 80:
                     msg = "正在生成字幕..."
                 elif pct < 82:
                     if self.is_first_time:
-                        msg = "首次下載 LLM 模型中，請稍候（約 3-5 分鐘）..."
+                        msg = "首次下載 AI 工具中，請稍候（約 3-5 分鐘）..."
                     else:
-                        msg = "正在加載 LLM 模型..."
+                        msg = "正在加載 AI 工具..."
                 elif pct < 95:
                     msg = "正在 AI 校正..."
                 else:
                     msg = "正在完成處理..."
                 self._emit_progress(msg, pct)
             
-            subtitles = self._pipeline.process(str(input_path), progress_callback=on_progress)
+            # Status callback for detailed messages (e.g., download progress)
+            def on_status(msg: str):
+                if self._is_cancelled:
+                    return
+                # Emit status message while keeping current progress
+                self._emit_progress(msg, -1)  # -1 means keep current progress
+            
+            subtitles = self._pipeline.process(
+                str(input_path), 
+                progress_callback=on_progress,
+                status_callback=on_status
+            )
             
             if self._is_cancelled:
                 return
@@ -143,7 +154,18 @@ class TranscribeWorkerV2(QObject):
             self.error.emit(f"處理失敗: {str(e)}")
     
     def _emit_progress(self, msg: str, pct: int):
-        """Emit progress signal (Qt signals are thread-safe)."""
+        """Emit progress signal (Qt signals are thread-safe).
+        
+        Args:
+            msg: Status message to display
+            pct: Progress percentage (0-100), or -1 to keep current progress
+        """
+        if pct == -1:
+            # Status-only update - keep current progress percentage
+            pct = getattr(self, '_current_pct', 0)
+        else:
+            # Track current progress for status-only updates
+            self._current_pct = pct
         self.progress.emit(msg, pct)
         
     def cancel(self):

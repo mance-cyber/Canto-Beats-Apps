@@ -118,11 +118,27 @@ class AudioPreprocessor:
         """
         if not AudioPreprocessor.validate_audio_file(file_path):
             raise ValueError(f"Invalid audio file: {file_path}")
-        
+
         logger.info(f"Loading audio: {file_path}")
-        
-        # Load audio using torchaudio
-        waveform, sample_rate = torchaudio.load(str(file_path))
+
+        # Load audio using torchaudio (with fallback for torchcodec error)
+        try:
+            waveform, sample_rate = torchaudio.load(str(file_path), backend="soundfile")
+        except Exception as e:
+            logger.debug(f"torchaudio.load with soundfile backend failed: {e}, trying default")
+            try:
+                waveform, sample_rate = torchaudio.load(str(file_path))
+            except ImportError as ie:
+                if "torchcodec" in str(ie):
+                    # Fallback to soundfile directly
+                    logger.info("Using soundfile fallback due to torchcodec error")
+                    import soundfile as sf
+                    data, sample_rate = sf.read(str(file_path))
+                    waveform = torch.from_numpy(data).float().T
+                    if waveform.dim() == 1:
+                        waveform = waveform.unsqueeze(0)
+                else:
+                    raise
         
         # Convert to mono if stereo
         if waveform.shape[0] > 1:
@@ -180,13 +196,9 @@ class AudioPreprocessor:
             import ffmpeg
             import subprocess
             
-            # Check if ffmpeg is available (hide console window on Windows)
-            import sys
-            creationflags = 0
-            if sys.platform == 'win32':
-                creationflags = subprocess.CREATE_NO_WINDOW
+            # Check if ffmpeg is available
             try:
-                subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True, creationflags=creationflags)
+                subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
             except FileNotFoundError:
                 error_msg = (
                     "FFmpeg executable not found in system PATH.\n"

@@ -10,7 +10,7 @@ import hashlib
 import json
 import shutil
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 
 # Setup FFmpeg path for packaged application
 # FFmpeg is bundled with the application in the install directory
@@ -72,22 +72,6 @@ _setup_ffmpeg_path()
 
 import ffmpeg
 
-# Monkey-patch ffmpeg-python to hide console window on Windows
-# ffmpeg-python uses subprocess.Popen internally, so we need to patch it
-import sys
-if sys.platform == 'win32':
-    import subprocess
-    _original_popen = subprocess.Popen
-    
-    def _patched_popen(*args, **kwargs):
-        """Patched Popen that adds CREATE_NO_WINDOW flag on Windows."""
-        if 'creationflags' not in kwargs:
-            kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
-        return _original_popen(*args, **kwargs)
-    
-    # Patch subprocess.Popen globally for ffmpeg calls
-    subprocess.Popen = _patched_popen
-
 from utils.logger import setup_logger
 
 logger = setup_logger()
@@ -96,6 +80,42 @@ logger = setup_logger()
 CACHE_DIR = Path.home() / ".canto-beats" / "thumbnail_cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
+
+def get_optimal_video_encoder() -> Dict[str, str]:
+    """
+    Get optimal video encoder configuration for the current platform.
+
+    Returns:
+        Dict with encoder parameters (vcodec, bitrate, etc.)
+    """
+    if sys.platform == 'darwin':
+        # macOS: Use VideoToolbox hardware encoding
+        return {
+            'vcodec': 'h264_videotoolbox',
+            'b:v': '5M',
+            'pix_fmt': 'nv12',  # VideoToolbox native format
+            'allow_sw': '1',    # Allow software fallback
+        }
+    else:
+        # Check for CUDA
+        try:
+            import torch
+            if torch.cuda.is_available():
+                # NVIDIA: Use NVENC
+                return {
+                    'vcodec': 'h264_nvenc',
+                    'preset': 'p4',
+                    'b:v': '5M',
+                }
+        except:
+            pass
+
+        # CPU fallback
+        return {
+            'vcodec': 'libx264',
+            'preset': 'medium',
+            'crf': '23',
+        }
 
 
 class VideoThumbnailExtractor:
@@ -108,7 +128,8 @@ class VideoThumbnailExtractor:
     @classmethod
     def _check_gpu_availability(cls) -> bool:
         """
-        Check if GPU (CUDA) is available for video processing.
+        Check if GPU is available for video processing.
+        Supports: Apple MPS (VideoToolbox), NVIDIA CUDA
         
         Returns:
             True if GPU is available, False otherwise
@@ -116,7 +137,17 @@ class VideoThumbnailExtractor:
         if cls._gpu_available is not None:
             return cls._gpu_available
         
-        # Method 1: Check if PyTorch reports CUDA availability
+        # Method 1: Check for Apple Silicon MPS
+        try:
+            import torch
+            if torch.backends.mps.is_available():
+                logger.info("Apple Silicon GPU detected (will use VideoToolbox for FFmpeg)")
+                cls._gpu_available = True
+                return True
+        except Exception as e:
+            logger.debug(f"MPS check failed: {e}")
+        
+        # Method 2: Check if PyTorch reports CUDA availability
         try:
             import torch
             if torch.cuda.is_available():
@@ -128,25 +159,26 @@ class VideoThumbnailExtractor:
         except Exception as e:
             logger.debug(f"PyTorch CUDA check failed: {e}")
         
-        # Method 2: Check if FFmpeg supports CUDA
+        # Method 3: Check if FFmpeg supports hardware acceleration
         try:
-            # Use CREATE_NO_WINDOW to prevent black console window on Windows
-            creationflags = 0
-            if sys.platform == 'win32':
-                creationflags = subprocess.CREATE_NO_WINDOW
             result = subprocess.run(
                 ['ffmpeg', '-hwaccels'],
                 capture_output=True,
                 text=True,
-                timeout=5,
-                creationflags=creationflags
+                timeout=5
             )
-            if 'cuda' in result.stdout.lower():
-                logger.info("GPU detected via FFmpeg hwaccel list")
+            # Check for various hardware accelerators
+            hwaccels = result.stdout.lower()
+            if 'videotoolbox' in hwaccels:  # macOS
+                logger.info("VideoToolbox hardware acceleration detected")
+                cls._gpu_available = True
+                return True
+            if 'cuda' in hwaccels:  # NVIDIA
+                logger.info("CUDA hardware acceleration detected")
                 cls._gpu_available = True
                 return True
         except Exception as e:
-            logger.debug(f"FFmpeg CUDA check failed: {e}")
+            logger.debug(f"FFmpeg hwaccel check failed: {e}")
         
         logger.info("No GPU detected, will use CPU for thumbnail extraction")
         cls._gpu_available = False
@@ -194,7 +226,7 @@ class VideoThumbnailExtractor:
                 try:
                     with open(cache_meta_file, 'r') as f:
                         meta = json.load(f)
-                    
+
                     # Verify all thumbnail files exist
                     cached_thumbs = []
                     all_exist = True
@@ -205,10 +237,12 @@ class VideoThumbnailExtractor:
                         else:
                             all_exist = False
                             break
-                    
+
                     if all_exist:
-                        logger.info(f" Loaded {len(cached_thumbs)} thumbnails from cache (instant!)")
+                        logger.info(f"✅ Loaded {len(cached_thumbs)} thumbnails from cache (instant!)")
                         return cached_thumbs
+                    else:
+                        logger.info(f"⚠️ Cache incomplete, re-extracting thumbnails")
                 except Exception as e:
                     logger.debug(f"Cache load failed: {e}")
             
@@ -243,12 +277,20 @@ class VideoThumbnailExtractor:
                     
                     if use_gpu and not gpu_failed:
                         try:
-                            # CUDA GPU decoding
-                            input_kwargs = {
-                                'ss': current_time,
-                                'hwaccel': 'cuda',
-                                'hwaccel_device': '0',
-                            }
+                            # Determine hardware acceleration based on platform
+                            if sys.platform == 'darwin':
+                                # macOS: Use VideoToolbox
+                                input_kwargs = {
+                                    'ss': current_time,
+                                    'hwaccel': 'videotoolbox',
+                                }
+                            else:
+                                # CUDA GPU decoding
+                                input_kwargs = {
+                                    'ss': current_time,
+                                    'hwaccel': 'cuda',
+                                    'hwaccel_device': '0',
+                                }
                             
                             (
                                 ffmpeg

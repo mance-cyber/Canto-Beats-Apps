@@ -126,7 +126,13 @@ class AnimatedProgressDialog(QDialog):
     def setLabelText(self, text: str):
         """Update progress text"""
         self.progress_label.setText(text)
+        # Force UI update
+        from PySide6.QtWidgets import QApplication
+        QApplication.processEvents()
         
     def setValue(self, value: int):
         """Update progress value (0-100)"""
         self.progress_bar.setValue(value)
+        # Force UI update
+        from PySide6.QtWidgets import QApplication
+        QApplication.processEvents()

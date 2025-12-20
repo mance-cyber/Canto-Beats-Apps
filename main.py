@@ -12,6 +12,39 @@ import os
 from pathlib import Path
 
 # ============================================
+# PERFORMANCE OPTIMIZATION - SET ENV VARS EARLY
+# ============================================
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+os.environ['KMP_WARNINGS'] = '0'  # Suppress OMP warnings
+
+# ============================================
+# MLX CACHE DIRECTORY - CRITICAL FOR DMG/PACKAGED APPS
+# MLX compiles Metal shaders at runtime and needs a writable cache directory.
+# Without this, running from read-only DMG volumes will crash with abort().
+# ============================================
+_mlx_cache_dir = Path.home() / "Library" / "Caches" / "canto-beats" / "mlx"
+_mlx_cache_dir.mkdir(parents=True, exist_ok=True)
+os.environ['MLX_CACHE_DIR'] = str(_mlx_cache_dir)
+
+# ============================================
+# MULTIPROCESSING FIX FOR PYINSTALLER (macOS)
+# This MUST be at the very top, before any other imports,
+# to prevent spawning multiple app windows when using
+# subprocess/multiprocessing in packaged .app bundles.
+# ============================================
+import multiprocessing
+if __name__ == "__main__":
+    # Required for PyInstaller on macOS
+    multiprocessing.freeze_support()
+    # Use 'spawn' method on macOS to avoid fork issues
+    if sys.platform == 'darwin':
+        multiprocessing.set_start_method('spawn', force=True)
+
+# ============================================
 # TORCHCODEC METADATA PATCH - FIX TRANSFORMERS IMPORT
 # transformers.audio_utils tries to get torchcodec version which fails in PyInstaller
 # NOTE: Do NOT patch subprocess.Popen globally - it breaks asyncio on Windows!
@@ -184,9 +217,24 @@ def main():
         torch.cuda.synchronize()
         free_memory = torch.cuda.mem_get_info()[0] / (1024**3)
         print(f"VRAM Available: {free_memory:.1f} GB")
-        print("[OK] GPU acceleration enabled!")
+        print("[OK] GPU acceleration enabled! (NVIDIA CUDA)")
+    elif torch.backends.mps.is_available():
+        # Apple Silicon MPS
+        print("[OK] Apple Silicon MPS detected")
+        print("GPU: Apple Silicon (Metal Performance Shaders)")
+        print("Memory: Unified with system RAM")
+        
+        # NOTE: Do NOT import MLX here!
+        # MLX crashes when imported from read-only DMG volumes.
+        # MLX will be imported lazily when needed for ASR.
+        import platform
+        print(f"Architecture: {platform.machine()}")
+        print("[INFO] MLX will be loaded on-demand during transcription")
+        
+        print("[OK] GPU acceleration enabled! (Apple Metal)")
     else:
-        print("[!] Using CPU mode")
+        print("[!] No GPU detected - Using CPU mode")
+        print("Warning: Transcription will be slower")
     
     print("="*60 + "\n")
     

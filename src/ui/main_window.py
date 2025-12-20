@@ -7,19 +7,20 @@ from PySide6.QtWidgets import (
     QPushButton, QLabel, QFileDialog, QSplitter,
     QStatusBar, QMenuBar, QMenu, QMessageBox,
     QTextEdit, QProgressDialog, QApplication, QFrame, QToolButton,
-    QSizePolicy
+    QSizePolicy, QInputDialog, QLineEdit
 )
 from PySide6.QtCore import Qt, Signal, QSize, QEvent
 from PySide6.QtGui import QAction, QIcon, QDragEnterEvent, QDropEvent, QKeySequence, QShortcut
 from pathlib import Path
 from typing import Optional, List, Dict
 import tempfile
+import shutil
 import os
 
 from core.config import Config
 from utils.logger import setup_logger
 from ui.transcription_worker_v2 import TranscribeWorkerV2
-from ui.video_player import VideoPlayer
+from ui.video_player import VideoPlayer, create_video_player
 from ui.timeline_editor import TimelineEditor
 from ui.style_panel import StyleControlPanel
 from subtitle.subtitle_exporter import SubtitleExporter
@@ -42,7 +43,16 @@ class MainWindow(QMainWindow):
         self.exporter = SubtitleExporter()
         self.style_processor = StyleProcessor(self.config)
         self.current_style_options = {}
-        self.processed_cache: Dict[str, List[Dict]] = {}  # Cache for processed results
+        
+        # Resize edge detection for frameless window
+        self.RESIZE_MARGIN = 8  # Pixels from edge to trigger resize
+        self._resize_direction = None
+        self._resize_start_pos = None
+        self._resize_start_geometry = None
+
+        # Session-only cache for processed results (cleared on app exit)
+        self.cache_dir = Path(tempfile.mkdtemp(prefix="canto-beats-style-"))
+        self.processed_cache: Dict[str, List[Dict]] = {}  # In-memory cache
         
         # Initialize notification manager
         from ui.notification_system import NotificationManager
@@ -90,14 +100,20 @@ class MainWindow(QMainWindow):
         # Frameless window
         self.setWindowFlags(Qt.FramelessWindowHint)
         
+        # Enable mouse tracking for resize cursor updates
+        self.setMouseTracking(True)
+        
         self.setWindowTitle("Canto-beats")
         self.resize(1400, 900)
         
         # Main layout
         central_widget = QWidget()
+        central_widget.setMouseTracking(True)
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        # Add edge margins for resize detection (top, bottom edges need space)
+        main_layout.setContentsMargins(self.RESIZE_MARGIN, self.RESIZE_MARGIN, 
+                                        self.RESIZE_MARGIN, self.RESIZE_MARGIN)
         main_layout.setSpacing(0)
         
         # Custom menu bar (top row with menus + window controls)
@@ -289,6 +305,10 @@ class MainWindow(QMainWindow):
         license_action.triggered.connect(self._show_license_dialog)
         menu.addAction(license_action)
         
+        clear_license_action = QAction("清除本地授權...", self)
+        clear_license_action.triggered.connect(self._clear_license)
+        menu.addAction(clear_license_action)
+        
         menu.addSeparator()
         
         exit_action = QAction("退出(X)", self)
@@ -366,7 +386,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(16)
         
         # Title with version
-        title = QLabel("Canto-beats v1.0")
+        title = QLabel(f"Canto-beats v{self.config.get('version', '1.0.0-macOS')}")
         title.setStyleSheet("font-size: 24px; font-weight: bold; color: #22d3ee;")
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
@@ -619,6 +639,70 @@ class MainWindow(QMainWindow):
         brand_layout.addWidget(title)
         
         layout.addWidget(brand_container)
+        
+        # Action buttons next to logo/title
+        action_container = QWidget()
+        action_layout = QHBoxLayout(action_container)
+        action_layout.setContentsMargins(16, 0, 0, 0)
+        action_layout.setSpacing(8)
+        
+        # License Key Button
+        self.license_btn = QPushButton("輸入授權碼")
+        self.license_btn.setCursor(Qt.PointingHandCursor)
+        self.license_btn.setMinimumHeight(32)
+        self.license_btn.setToolTip("輸入授權碼以啟用完整功能")
+        self.license_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #8b5cf6, stop:1 #a855f7);
+                color: white;
+                padding: 6px 16px;
+                border-radius: 6px;
+                font-size: 11pt;
+                font-weight: bold;
+                border: none;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #7c3aed, stop:1 #9333ea);
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #6d28d9, stop:1 #7e22ce);
+            }
+        """)
+        self.license_btn.clicked.connect(self._show_license_dialog)
+        action_layout.addWidget(self.license_btn)
+        
+        # Export Subtitles Button
+        self.export_btn = QPushButton("匯出字幕")
+        self.export_btn.setCursor(Qt.PointingHandCursor)
+        self.export_btn.setMinimumHeight(32)
+        self.export_btn.setToolTip("匯出字幕檔案 (SRT/ASS) - 需要授權")
+        self.export_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #14b8a6, stop:1 #2dd4bf);
+                color: white;
+                padding: 6px 16px;
+                border-radius: 6px;
+                font-size: 11pt;
+                font-weight: bold;
+                border: none;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #0d9488, stop:1 #14b8a6);
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #0f766e, stop:1 #0d9488);
+            }
+        """)
+        self.export_btn.clicked.connect(self._show_export_dialog)
+        action_layout.addWidget(self.export_btn)
+        
+        layout.addWidget(action_container)
         layout.addStretch()
         
         # Right: Utility buttons with functionality
@@ -680,9 +764,9 @@ class MainWindow(QMainWindow):
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
                     stop:0 #ff6b6b, stop:0.5 #ee5a6f, stop:1 #f06292);
                 color: white;
-                padding: 6px 16px;
+                padding: 8px 20px;
                 border-radius: 6px;
-                font-size: 11pt;
+                font-size: 13pt;
                 font-weight: bold;
                 border: 2px solid #ff8787;
                 margin-right: 8px;
@@ -744,7 +828,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(16)  # Add gap between video and timeline
         
         # Video Player
-        self.video_player = VideoPlayer()
+        self.video_player = create_video_player()
         self.video_player.setObjectName("videoPlayerContainer")
         self.video_player.position_changed.connect(self._on_player_position_changed)
         self.video_player.duration_changed.connect(self._on_player_duration_changed)
@@ -786,6 +870,35 @@ class MainWindow(QMainWindow):
         self.transcribe_btn.setMinimumHeight(48)
         self.transcribe_btn.clicked.connect(self._start_transcription)
         layout.addWidget(self.transcribe_btn)
+        
+        # Custom Whisper Prompt Input
+        prompt_label = QLabel("🎤 自定義詞彙 (可選):")
+        prompt_label.setToolTip("輸入歌手名、歌曲名等專有名詞，提高識別準確度")
+        prompt_label.setStyleSheet("color: #94a3b8; font-size: 11px; margin-top: 8px;")
+        layout.addWidget(prompt_label)
+        
+        self.custom_prompt_input = QLineEdit()
+        self.custom_prompt_input.setPlaceholderText("例如：陳奕迅、張學友、Eason...")
+        self.custom_prompt_input.setToolTip("輸入歌手名、歌曲名等，用逗號或頓號分隔")
+        self.custom_prompt_input.setText(self.config.get("whisper_custom_prompt", ""))
+        self.custom_prompt_input.textChanged.connect(self._on_custom_prompt_changed)
+        self.custom_prompt_input.setStyleSheet("""
+            QLineEdit {
+                background-color: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                padding: 8px 12px;
+                color: #f1f5f9;
+                font-size: 12px;
+            }
+            QLineEdit:focus {
+                border: 1px solid #3b82f6;
+            }
+            QLineEdit::placeholder {
+                color: #64748b;
+            }
+        """)
+        layout.addWidget(self.custom_prompt_input)
         
         # AI Correction feature removed - LLM disabled by default
         
@@ -853,6 +966,113 @@ class MainWindow(QMainWindow):
                 self.video_player.toggle_play()
                 return True
         return super().eventFilter(obj, event)
+    
+    def _get_resize_direction(self, pos):
+        """Determine resize direction based on mouse position."""
+        rect = self.rect()
+        margin = self.RESIZE_MARGIN
+        
+        left = pos.x() < margin
+        right = pos.x() > rect.width() - margin
+        top = pos.y() < margin
+        bottom = pos.y() > rect.height() - margin
+        
+        if top and left:
+            return 'top-left'
+        elif top and right:
+            return 'top-right'
+        elif bottom and left:
+            return 'bottom-left'
+        elif bottom and right:
+            return 'bottom-right'
+        elif left:
+            return 'left'
+        elif right:
+            return 'right'
+        elif top:
+            return 'top'
+        elif bottom:
+            return 'bottom'
+        return None
+    
+    def _update_cursor_shape(self, direction):
+        """Update cursor shape based on resize direction."""
+        cursor_map = {
+            'left': Qt.SizeHorCursor,
+            'right': Qt.SizeHorCursor,
+            'top': Qt.SizeVerCursor,
+            'bottom': Qt.SizeVerCursor,
+            'top-left': Qt.SizeFDiagCursor,
+            'bottom-right': Qt.SizeFDiagCursor,
+            'top-right': Qt.SizeBDiagCursor,
+            'bottom-left': Qt.SizeBDiagCursor,
+        }
+        if direction in cursor_map:
+            self.setCursor(cursor_map[direction])
+        else:
+            self.unsetCursor()
+    
+    def mousePressEvent(self, event):
+        """Handle mouse press for resizing."""
+        if event.button() == Qt.LeftButton:
+            direction = self._get_resize_direction(event.position().toPoint())
+            if direction:
+                self._resize_direction = direction
+                self._resize_start_pos = event.globalPosition().toPoint()
+                self._resize_start_geometry = self.geometry()
+                event.accept()
+                return
+        super().mousePressEvent(event)
+    
+    def mouseMoveEvent(self, event):
+        """Handle mouse move for resizing."""
+        if self._resize_direction and self._resize_start_pos:
+            # Currently resizing
+            delta = event.globalPosition().toPoint() - self._resize_start_pos
+            geo = self._resize_start_geometry
+            new_geo = self.geometry()
+            
+            min_width = 600
+            min_height = 10
+            
+            if 'left' in self._resize_direction:
+                new_left = geo.left() + delta.x()
+                new_width = geo.width() - delta.x()
+                if new_width >= min_width:
+                    new_geo.setLeft(new_left)
+            if 'right' in self._resize_direction:
+                new_width = geo.width() + delta.x()
+                if new_width >= min_width:
+                    new_geo.setWidth(new_width)
+            if 'top' in self._resize_direction:
+                new_top = geo.top() + delta.y()
+                new_height = geo.height() - delta.y()
+                if new_height >= min_height:
+                    new_geo.setTop(new_top)
+            if 'bottom' in self._resize_direction:
+                new_height = geo.height() + delta.y()
+                if new_height >= min_height:
+                    new_geo.setHeight(new_height)
+            
+            self.setGeometry(new_geo)
+            event.accept()
+            return
+        else:
+            # Update cursor shape based on position
+            direction = self._get_resize_direction(event.position().toPoint())
+            self._update_cursor_shape(direction)
+        super().mouseMoveEvent(event)
+    
+    def mouseReleaseEvent(self, event):
+        """Handle mouse release after resizing."""
+        if event.button() == Qt.LeftButton and self._resize_direction:
+            self._resize_direction = None
+            self._resize_start_pos = None
+            self._resize_start_geometry = None
+            self.unsetCursor()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def _open_file(self):
         """Open a video file"""
@@ -915,24 +1135,26 @@ class MainWindow(QMainWindow):
             )
             return
         
-        # Check if models are cached - show first-time download warning
-        self.logger.info("[DEBUG] Checking model cache...")
-        is_first_time = not self.config.is_model_cached("all")
-        self.logger.info(f"[DEBUG] is_first_time: {is_first_time}")
+        # Check if Whisper model is cached (Qwen is only needed for written Chinese)
+        self.logger.info("[DEBUG] Checking Whisper model cache...")
+        is_first_time = not self.config.is_model_cached("whisper")
+        self.logger.info(f"[DEBUG] is_first_time (Whisper not cached): {is_first_time}")
         
         if is_first_time:
-            # Show first-time download warning
-            self.logger.info("[DEBUG] Showing first-time dialog...")
+            # ========================================
+            # STEP 1: Show confirmation dialog FIRST
+            # ========================================
+            self.logger.info("[DEBUG] Showing first-time confirmation dialog...")
             from PySide6.QtWidgets import QMessageBox
             msg = QMessageBox(self)
-            msg.setWindowTitle("First Time Setup")
+            msg.setWindowTitle("首次設定")
             msg.setIcon(QMessageBox.Information)
-            msg.setText("First time setup - AI model download required")
+            msg.setText("首次設定 - 需要下載 AI 工具")
             msg.setInformativeText(
-                "First transcription requires downloading AI models (3-5 GB).\n"
-                "Download time depends on network speed (about 5-15 minutes).\n\n"
-                "After download, offline use is available!\n\n"
-                "Continue?"
+                "首次轉寫需要下載 AI 工具 (約 3-5 GB)。\n"
+                "下載時間視網絡速度而定 (約 5-15 分鐘)。\n\n"
+                "下載完成後，可離線使用！\n\n"
+                "是否繼續？"
             )
             msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             msg.setDefaultButton(QMessageBox.Yes)
@@ -962,36 +1184,67 @@ class MainWindow(QMainWindow):
             
             if msg.exec() != QMessageBox.Yes:
                 return
+            
+            # ========================================
+            # STEP 2: Download AI tools in MAIN THREAD
+            # with visible progress dialog
+            # ========================================
+            self.logger.info("[DEBUG] Starting AI tools download...")
+            from ui.download_dialog import ModelDownloadDialog, MLXWhisperDownloadWorker
+            
+            # Create download dialog for MLX Whisper
+            model_path = "mlx-community/whisper-large-v3-mlx"
+            download_dialog = ModelDownloadDialog(model_path, parent=self)
+            download_dialog.setWindowTitle("AI 工具下載")
+            
+            # Use MLX Whisper worker
+            download_dialog.worker = MLXWhisperDownloadWorker("large-v3")
+            download_dialog.worker.progress.connect(download_dialog._on_progress)
+            download_dialog.worker.finished.connect(download_dialog._on_finished)
+            download_dialog.worker.start()
+            
+            # Show dialog and wait for download to complete
+            result = download_dialog.exec()
+            
+            if not download_dialog.was_successful():
+                self.logger.warning("AI tools download failed or cancelled")
+                self._show_frameless_message(
+                    "下載失敗",
+                    "AI 工具下載失敗或已取消。\n請稍後重試。",
+                    "warning"
+                )
+                return
+            
+            self.logger.info("[DEBUG] AI tools download completed successfully")
         
+        # ========================================
+        # STEP 3: Start normal transcription
+        # ========================================
         self.logger.info("[START] Beginning AI transcription...")
         
         # Disable button during processing
         self.transcribe_btn.setEnabled(False)
-        
-        # AI Correction disabled - LLM feature removed
+
+        # LLM disabled during transcription - only used for 書面語 conversion
         enable_llm = False
-        
-        # Create worker with first-time flag
+
+        # Create worker (is_first_time=False now since download is done)
         from ui.transcription_worker_v2 import TranscribeWorkerV2
         self.worker = TranscribeWorkerV2(
             self.config,
             self.current_video_path,
             force_cpu=False,
-            enable_llm=enable_llm,  # Always disabled
-            is_first_time=is_first_time  # Pass flag for different progress messages
+            enable_llm=enable_llm,
+            is_first_time=False  # Download already done
         )
         self.worker.progress.connect(self._on_transcription_progress)
         self.worker.completed.connect(self._on_transcription_finished)
         self.worker.error.connect(self._on_transcription_error)
         
-        
         # Show animated progress dialog
         from ui.animated_progress_dialog import AnimatedProgressDialog
         self.progress_dialog = AnimatedProgressDialog(self)
-        if is_first_time:
-            self.progress_dialog.setLabelText("First time setup - downloading AI models...")
-        else:
-            self.progress_dialog.setLabelText("正在初始化 AI 模型...")
+        self.progress_dialog.setLabelText("正在加載 AI 工具...")
         self.progress_dialog.canceled.connect(self._on_transcription_canceled)
         self.progress_dialog.show()
         
@@ -1169,6 +1422,11 @@ class MainWindow(QMainWindow):
         # Update video player subtitles
         self._update_video_subtitles()
     
+    def _on_custom_prompt_changed(self, text: str):
+        """Handle custom Whisper prompt change."""
+        self.config.set("whisper_custom_prompt", text.strip())
+        self.logger.info(f"Custom prompt updated: {text[:50]}..." if len(text) > 50 else f"Custom prompt updated: {text}")
+    
     def _on_style_changed(self, options: dict):
         """Handle style options change from StyleControlPanel."""
         self.current_style_options = options
@@ -1182,26 +1440,40 @@ class MainWindow(QMainWindow):
         """Apply style processing to original segments and update display."""
         if not self.original_segments:
             return
-        
-        # Create cache key from options
+
+        # Create cache key from video path + options
         import json
-        cache_key = json.dumps(self.current_style_options, sort_keys=True)
-        
-        # Check cache first
-        if cache_key in self.processed_cache:
-            self.logger.info("[CACHE] Using cached processing result")
-            self.current_segments = self.processed_cache[cache_key]
-            self.timeline.set_segments(self.current_segments)
-            self._update_video_subtitles()
-            self.logger.info("[OK] Style processing complete (from cache)")
-            return
+        import hashlib
+
+        video_hash = hashlib.md5(str(self.current_video_path).encode()).hexdigest()[:8]
+        options_str = json.dumps(self.current_style_options, sort_keys=True)
+        cache_key = f"{video_hash}_{hashlib.md5(options_str.encode()).hexdigest()[:8]}"
+        cache_file = self.cache_dir / f"{cache_key}.json"
+
+        # Check disk cache first
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r', encoding='utf-8') as f:
+                    cached_data = json.load(f)
+                    self.current_segments = cached_data['segments']
+                    self.timeline.set_segments(self.current_segments)
+                    self._update_video_subtitles()
+                    self.logger.info(f"✅ [CACHE] Loaded from disk: {cache_file.name}")
+                    return
+            except Exception as e:
+                self.logger.warning(f"Failed to load cache: {e}")
             
         self.logger.info("[STYLE] Applying style processing...")
         
-        # Check if AI processing is needed (書面語和半書面自動啟用)
+        # Check if AI processing is needed
+        # AI is only needed for:
+        # 1. Language style conversion (書面語 or 半書面語)
+        # 2. English translation (translate mode, not keep)
         style = self.current_style_options.get('style', 'spoken')
-        # 與 style_processor.py 同步：書面語和半書面自動啟用 AI
-        needs_ai = style in ('semi', 'written')
+        english_mode = self.current_style_options.get('english', 'keep')
+        
+        # AI only needed for style conversion or english translation
+        needs_ai = style in ('semi', 'written') or english_mode == 'translate'
         
         # Show progress dialog if AI processing is needed
         progress_dialog = None
@@ -1235,10 +1507,20 @@ class MainWindow(QMainWindow):
                 self.current_style_options,
                 progress_callback=update_progress if needs_ai else None
             )
-            
-            # Cache the result
-            self.processed_cache[cache_key] = processed_segments
-            
+
+            # Save to disk cache
+            try:
+                cache_data = {
+                    'video_path': str(self.current_video_path),
+                    'options': self.current_style_options,
+                    'segments': processed_segments
+                }
+                with open(cache_file, 'w', encoding='utf-8') as f:
+                    json.dump(cache_data, f, ensure_ascii=False, indent=2)
+                self.logger.info(f"💾 Saved to cache: {cache_file.name}")
+            except Exception as e:
+                self.logger.warning(f"Failed to save cache: {e}")
+
             # Update current segments
             self.current_segments = processed_segments
             
@@ -1564,9 +1846,16 @@ class MainWindow(QMainWindow):
         import torch
         from PySide6.QtWidgets import QMessageBox
         
-        # Gather status info
-        gpu_status = "已啟用" if torch.cuda.is_available() else "未啟用"
-        gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "N/A"
+        # Gather status info - cross-platform GPU detection
+        if torch.backends.mps.is_available():
+            gpu_status = "已啟用 (Apple Metal)"
+            gpu_name = "Apple Silicon GPU"
+        elif torch.cuda.is_available():
+            gpu_status = "已啟用"
+            gpu_name = torch.cuda.get_device_name(0)
+        else:
+            gpu_status = "未啟用"
+            gpu_name = "N/A"
         
         # Check AI model status
         ai_status = "未安裝"
@@ -1834,6 +2123,169 @@ OpenCC 轉換: 已啟用
             self.status_bar.showMessage("[OK] License activated!", 5000)
             self.logger.info("[OK] License activated successfully")
 
+    def _clear_license(self):
+        """Clear local license with 'delete' verification"""
+        from core.license_manager import LicenseManager
+        license_mgr = LicenseManager(self.config)
+        
+        # Create custom confirmation dialog
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QPushButton, QHBoxLayout
+        
+        dialog = QDialog(self)
+        dialog.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        dialog.setMinimumWidth(420)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #1e1e1e;
+                border: 1px solid #444;
+                border-radius: 12px;
+            }
+            QLabel {
+                color: #e0e0e0;
+            }
+        """)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+        
+        # Title
+        title = QLabel("清除本地授權")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #ef4444;")
+        layout.addWidget(title)
+        
+        # Warning text
+        warning = QLabel(
+            "⚠️ 請慎重執行此操作！\n\n"
+            "清除後，本機的授權記錄將被永久刪除。\n"
+            "若您的序號已綁定此設備，將消耗一次轉移機會。\n\n"
+            "請在下方輸入 'delete' 以確認清除："
+        )
+        warning.setWordWrap(True)
+        warning.setStyleSheet("font-size: 12px; color: #fbbf24; line-height: 1.6;")
+        layout.addWidget(warning)
+        
+        # Input field
+        input_field = QLineEdit()
+        input_field.setPlaceholderText("輸入 delete")
+        input_field.setStyleSheet("""
+            QLineEdit {
+                background-color: #2b2b2b;
+                color: #e0e0e0;
+                border: 2px solid #444;
+                border-radius: 6px;
+                padding: 10px;
+                font-size: 14px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #ef4444;
+            }
+        """)
+        layout.addWidget(input_field)
+        
+        # Buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        cancel_btn = QPushButton("取消")
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #555;
+                color: white;
+                padding: 10px 24px;
+                border-radius: 6px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #666;
+            }
+        """)
+        cancel_btn.clicked.connect(dialog.reject)
+        btn_layout.addWidget(cancel_btn)
+        
+        confirm_btn = QPushButton("確認清除")
+        confirm_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #dc2626;
+                color: white;
+                padding: 10px 24px;
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #ef4444;
+            }
+        """)
+        confirm_btn.clicked.connect(dialog.accept)
+        btn_layout.addWidget(confirm_btn)
+        
+        layout.addLayout(btn_layout)
+        
+        # Show dialog
+        if dialog.exec() == QDialog.Accepted:
+            if input_field.text() == "delete":
+                if license_mgr.clear_license():
+                    self.status_bar.showMessage("[OK] 本地授權已清除", 5000)
+                    QMessageBox.information(self, "成功", "本地授權已成功清除。")
+                else:
+                    QMessageBox.warning(self, "失敗", "未找到本地授權文件或清除失敗。")
+            else:
+                QMessageBox.warning(self, "驗證失敗", "輸入內容不符，操作已取消。")
+
+    def _show_export_dialog(self):
+        """Show export format selection menu."""
+        # Check license first
+        from core.license_manager import LicenseManager
+        license_mgr = LicenseManager(self.config)
+        
+        if not license_mgr.is_licensed():
+            self._show_frameless_message(
+                "需要授權",
+                "匯出字幕功能需要啟用授權。\n\n請點擊「輸入授權碼」按鈕啟用授權，\n或點擊「立即購買」購買授權。",
+                "warning"
+            )
+            return
+        
+        if not self.current_segments or len(self.current_segments) == 0:
+            self._show_frameless_message(
+                "無法匯出",
+                "請先進行 AI 轉寫以生成字幕。",
+                "warning"
+            )
+            return
+        
+        # Show format selection menu
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #1e293b;
+                color: #e2e8f0;
+                border: 1px solid #334155;
+                border-radius: 8px;
+                padding: 6px;
+            }
+            QMenu::item {
+                padding: 10px 24px;
+                border-radius: 4px;
+            }
+            QMenu::item:selected {
+                background-color: #14b8a6;
+            }
+        """)
+        
+        srt_action = menu.addAction("SRT 字幕檔 (.srt)")
+        srt_action.triggered.connect(lambda: self._export_subtitles('srt'))
+        
+        ass_action = menu.addAction("ASS 字幕檔 (.ass)")
+        ass_action.triggered.connect(lambda: self._export_subtitles('ass'))
+        
+        txt_action = menu.addAction("純文字 (.txt)")
+        txt_action.triggered.connect(lambda: self._export_subtitles('txt'))
+        
+        # Show menu at button position
+        menu.exec(self.export_btn.mapToGlobal(self.export_btn.rect().bottomLeft()))
+
     def _open_purchase_or_website(self):
         """Open purchase page or website based on license status."""
         import webbrowser
@@ -1945,7 +2397,18 @@ OpenCC 轉換: 已啟用
         """Show GPU status information."""
         import torch
         
-        if torch.cuda.is_available():
+        if torch.backends.mps.is_available():
+            # Apple Silicon with MPS
+            import platform
+            chip_info = platform.processor() or "Apple Silicon"
+            status = (
+                f"GPU 狀態\n\n"
+                f"GPU: Apple Silicon ({chip_info})\n"
+                f"加速: Metal Performance Shaders (MPS)\n"
+                f"記憶體: 共享系統記憶體\n\n"
+                f"PyTorch 版本: {torch.__version__}"
+            )
+        elif torch.cuda.is_available():
             gpu_name = torch.cuda.get_device_name(0)
             total_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
             free_memory = torch.cuda.mem_get_info()[0] / (1024**3)
@@ -1960,7 +2423,7 @@ OpenCC 轉換: 已啟用
                 f"PyTorch 版本: {torch.__version__}"
             )
         else:
-            status = "❌ CUDA 不可用\n\n系統將使用 CPU 模式運行。"
+            status = "❌ GPU 不可用\n\n系統將使用 CPU 模式運行。"
         
         QMessageBox.information(self, "GPU 狀態", status)
     
@@ -2085,3 +2548,14 @@ OpenCC 轉換: 已啟用
                     self._exit_fullscreen()
                     return True
         return super().eventFilter(obj, event)
+
+    def closeEvent(self, event):
+        """Clean up session-only cache when app closes"""
+        try:
+            if hasattr(self, 'cache_dir') and self.cache_dir.exists():
+                shutil.rmtree(self.cache_dir, ignore_errors=True)
+                self.logger.info(f"🗑️ Cleaned up session cache: {self.cache_dir}")
+        except Exception as e:
+            self.logger.warning(f"Failed to clean cache: {e}")
+        
+        event.accept()

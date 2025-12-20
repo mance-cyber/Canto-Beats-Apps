@@ -14,7 +14,7 @@ class AppConfig:
     """Application configuration"""
     
     # Version info
-    version: str = "1.0.0"
+    version: str = "1.0.0-macOS"
     build_type: str = "lite"  # "lite" or "flagship"
     
     # Paths
@@ -28,8 +28,9 @@ class AppConfig:
     use_cantonese_model: bool = True  # Use Cantonese-finetuned models from HuggingFace
     cantonese_model_flagship: str = "khleeloo/whisper-large-v3-cantonese"
     cantonese_model_lite: str = "alvanlii/whisper-small-cantonese"
+    whisper_custom_prompt: str = ""  # User-defined custom prompt for Whisper (e.g., singer names, song titles)
     vad_model: str = "silero_vad"
-    device: str = "cuda"  # Force GPU usage as requested ("auto", "cuda", "cpu")
+    device: str = "auto"  # Auto-detect: MPS (Apple Silicon), CUDA, or CPU
     
     # VAD Settings
     # VAD Settings
@@ -147,34 +148,51 @@ class Config:
         from pathlib import Path
         import os
         
-        # Check Whisper model cache (faster-whisper uses huggingface cache)
+        # Check Whisper model cache (MLX Whisper uses huggingface cache)
         hf_cache = Path.home() / ".cache" / "huggingface" / "hub"
         whisper_cached = False
         
-        # Look for whisper model folders
-        if hf_cache.exists():
-            for folder in hf_cache.iterdir():
-                if "whisper" in folder.name.lower() and "large" in folder.name.lower():
-                    whisper_cached = True
-                    break
+        # MLX Whisper model path
+        mlx_whisper_folder = hf_cache / "models--mlx-community--whisper-large-v3-mlx"
         
-        # Also check CTranslate2 cache for faster-whisper
-        ct2_cache = self.models_dir
-        if ct2_cache.exists():
-            for folder in Path(ct2_cache).iterdir():
-                if folder.is_dir() and "whisper" in folder.name.lower():
+        if mlx_whisper_folder.exists():
+            # Check blobs directory for actual model content (weights.npz is ~3GB)
+            blobs = mlx_whisper_folder / "blobs"
+            if blobs.exists():
+                blob_files = list(blobs.iterdir())
+                # Need at least 1GB of content (weights.npz is ~3GB)
+                total_size = sum(f.stat().st_size for f in blob_files if f.is_file())
+                if total_size > 1_000_000_000:  # At least 1GB
                     whisper_cached = True
-                    break
+            
+            # Also check snapshots for .npz or .safetensors files
+            if not whisper_cached:
+                snapshots = mlx_whisper_folder / "snapshots"
+                if snapshots.exists():
+                    for snapshot_dir in snapshots.iterdir():
+                        if snapshot_dir.is_dir():
+                            # Look for .npz (MLX format) or .safetensors
+                            files = list(snapshot_dir.glob("*.npz")) + list(snapshot_dir.glob("*.safetensors"))
+                            if files:
+                                whisper_cached = True
+                                break
         
-        # Check LLM model cache (Qwen)
+        # Check LLM model cache (Qwen/MLX Qwen)
         llm_cached = False
         if hf_cache.exists():
             for folder in hf_cache.iterdir():
-                # Check for Qwen models
                 folder_name = folder.name.lower()
+                # Check for both Transformers Qwen and MLX Qwen
                 if "qwen" in folder_name:
-                    llm_cached = True
-                    break
+                    # Verify model has actual content (not just empty folder)
+                    blobs = folder / "blobs"
+                    if blobs.exists():
+                        blob_files = list(blobs.iterdir())
+                        total_size = sum(f.stat().st_size for f in blob_files if f.is_file())
+                        # Qwen 3B is ~5-6GB
+                        if total_size > 1_000_000_000:  # At least 1GB
+                            llm_cached = True
+                            break
         
         if model_type == "whisper":
             return whisper_cached

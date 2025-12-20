@@ -329,7 +329,7 @@ class SubtitleTrack(QWidget):
         
         # Draw segments - Figma style
         from PySide6.QtGui import QFont
-        font = QFont("Segoe UI", 11)
+        font = QFont("Segoe UI", 14)  # 增大字體從 11 到 14
         font.setWeight(QFont.Medium)
         painter.setFont(font)
         

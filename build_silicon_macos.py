@@ -40,14 +40,13 @@ def check_dependencies():
         print("安装命令: /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"")
         sys.exit(1)
     
-    # 检查 mpv
-    try:
-        subprocess.run(['brew', 'list', 'mpv'], 
-                      capture_output=True, check=True)
-        print("✅ mpv 已安装")
-    except subprocess.CalledProcessError:
-        print("⚠️  mpv 未安装，正在安装...")
-        subprocess.run(['brew', 'install', 'mpv'], check=True)
+    # 检查 mpv (可選 - macOS 使用 AVPlayer)
+    # try:
+    #     subprocess.run(['brew', 'list', 'mpv'],
+    #                   capture_output=True, check=True)
+    #     print("✅ mpv 已安装")
+    # except subprocess.CalledProcessError:
+    #     print("⚠️  mpv 未安装（macOS 使用 AVPlayer，不影響打包）")
     
     # 检查 ffmpeg
     try:
@@ -91,11 +90,12 @@ def build_app():
     cmd = [
         sys.executable, "-m", "PyInstaller",
         main_script,
-        
+
         # === 输出配置 ===
         "--onedir",
-        "--windowed",
+        "--windowed",  # 創建 .app bundle（方案一需要後續添加終端啟動器）
         "--name=Canto-beats",
+        "--icon=public/icons/app_icon.icns",
         "--distpath=dist",
         "--workpath=build",
         "--specpath=.",
@@ -116,7 +116,36 @@ def build_app():
         "--hidden-import=sentencepiece",
         "--hidden-import=accelerate",
         "--hidden-import=silero_vad",
-        "--hidden-import=mpv",
+        # === MLX (Apple Silicon GPU acceleration) ===
+        "--hidden-import=mlx",
+        "--hidden-import=mlx.core",
+        "--hidden-import=mlx.nn",
+        "--hidden-import=mlx.utils",
+        "--hidden-import=mlx._reprlib_fix",
+        "--hidden-import=mlx_whisper",
+        "--hidden-import=mlx_whisper.transcribe",
+        "--hidden-import=mlx_whisper.audio",
+        "--hidden-import=mlx_whisper.decoding",
+        "--hidden-import=mlx_whisper.load_models",
+        # MLX LM (Apple Silicon accelerated Qwen) for 書面語 conversion
+        "--hidden-import=mlx_lm",
+        "--hidden-import=mlx_lm.generate",
+        "--hidden-import=mlx_lm.utils",
+        # Collect all MLX data files
+        "--collect-all=mlx",
+        "--collect-all=mlx_whisper",
+        "--collect-all=mlx_lm",
+        "--hidden-import=opencc",
+        "--hidden-import=pysrt",
+        "--hidden-import=soundfile",
+        "--hidden-import=pydub",
+        "--hidden-import=ffmpeg",
+        "--hidden-import=huggingface_hub",
+        "--hidden-import=objc",
+        "--hidden-import=Foundation",
+        "--hidden-import=AppKit",
+        "--hidden-import=AVFoundation",
+        "--hidden-import=Quartz",
         
         # === macOS 特定 ===
         "--osx-bundle-identifier=com.cantobeats.app",
@@ -133,10 +162,10 @@ def build_app():
         "--exclude-module=IPython",
     ]
     
-    # 添加 libmpv (如果找到)
-    libmpv_path = find_libmpv()
-    if libmpv_path:
-        cmd.append(f"--add-binary={libmpv_path}:.")
+    # 不添加 libmpv (macOS 使用 AVPlayer)
+    # libmpv_path = find_libmpv()
+    # if libmpv_path:
+    #     cmd.append(f"--add-binary={libmpv_path}:.")
     
     print("\n构建命令:")
     print(" ".join(cmd))

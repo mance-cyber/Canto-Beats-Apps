@@ -35,7 +35,7 @@ except ImportError:
 # 從 https://app.supabase.io/project/YOUR_PROJECT/settings/api 獲取
 SUPABASE_URL = "https://evzxjipgrmswkeeqlals.supabase.co"  # 例如: "https://xxxxx.supabase.co"
 SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2enhqaXBncm1zd2tlZXFsYWxzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUyOTI1NjAsImV4cCI6MjA4MDg2ODU2MH0.Nm3TvI_Tocc4ytovkuUgUTaYdvPrlQCfqhbxZYDOBiM"  # 例如: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-OFFLINE_CACHE_DAYS = 3  # 離線緩存有效天數
+OFFLINE_CACHE_DAYS = 12  # 離線緩存有效天數
 USE_ONLINE_VERIFICATION = bool(SUPABASE_URL and SUPABASE_ANON_KEY)
 
 # Master key for license encryption (protected by Nuitka compilation)
@@ -86,7 +86,17 @@ class SupabaseClient:
                 result = response.json()
                 return (result.get('success', False), result)
             else:
-                return (False, {"message": f"服務器錯誤: {response.status_code}"})
+                try:
+                    error_json = response.json()
+                    msg = error_json.get('message', f"服務器錯誤: {response.status_code}")
+                    hint = error_json.get('hint', '')
+                    details = error_json.get('details', '')
+                    full_msg = msg
+                    if details: full_msg += f" ({details})"
+                    if hint: full_msg += f" [{hint}]"
+                except:
+                    full_msg = f"服務器錯誤: {response.status_code}\n{response.text[:100]}"
+                return (False, {"message": full_msg})
                 
         except Exception as e:
             return (False, {"message": str(e), "offline": True})
@@ -111,7 +121,12 @@ class SupabaseClient:
                 result = response.json()
                 return (result.get('success', False), result)
             else:
-                return (False, {"message": f"服務器錯誤: {response.status_code}"})
+                try:
+                    error_json = response.json()
+                    msg = error_json.get('message', f"服務器錯誤: {response.status_code}")
+                except:
+                    msg = f"服務器錯誤: {response.status_code}"
+                return (False, {"message": msg})
                 
         except Exception as e:
             return (False, {"message": str(e), "offline": True})
@@ -129,7 +144,8 @@ class MachineFingerprint:
                 output = subprocess.check_output(
                     ['wmic', 'cpu', 'get', 'ProcessorId'],
                     stderr=subprocess.DEVNULL,
-                    creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == 'Windows' else 0
+                    creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == 'Windows' else 0,
+                    timeout=5
                 ).decode()
                 lines = output.strip().split('\n')
                 if len(lines) > 1:
@@ -137,7 +153,8 @@ class MachineFingerprint:
             elif platform.system() == 'Darwin':  # macOS
                 output = subprocess.check_output(
                     ['sysctl', '-n', 'machdep.cpu.brand_string'],
-                    stderr=subprocess.DEVNULL
+                    stderr=subprocess.DEVNULL,
+                    timeout=5
                 ).decode()
                 return output.strip()
             else:  # Linux
@@ -145,7 +162,7 @@ class MachineFingerprint:
                     for line in f:
                         if 'model name' in line:
                             return line.split(':')[1].strip()
-        except (subprocess.SubprocessError, OSError, FileNotFoundError):
+        except (subprocess.SubprocessError, subprocess.TimeoutExpired, OSError, FileNotFoundError):
             pass
         return platform.processor()
     
@@ -158,22 +175,26 @@ class MachineFingerprint:
                 output = subprocess.check_output(
                     ['wmic', 'baseboard', 'get', 'SerialNumber'],
                     stderr=subprocess.DEVNULL,
-                    creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == 'Windows' else 0
+                    creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == 'Windows' else 0,
+                    timeout=5
                 ).decode()
                 lines = output.strip().split('\n')
                 if len(lines) > 1:
                     return lines[1].strip()
-            elif platform.system() == 'Darwin':  # macOS
+            elif platform.system() == 'Darwin':  # macOS (Optimized with ioreg)
                 output = subprocess.check_output(
-                    ['system_profiler', 'SPHardwareDataType'],
-                    stderr=subprocess.DEVNULL
+                    ['ioreg', '-rd1', '-c', 'IOPlatformExpertDevice'],
+                    stderr=subprocess.DEVNULL,
+                    timeout=5
                 ).decode()
                 for line in output.split('\n'):
-                    if 'Serial Number' in line:
-                        return line.split(':')[1].strip()
-        except (subprocess.SubprocessError, OSError, FileNotFoundError):
+                    if 'IOPlatformSerialNumber' in line and '=' in line:
+                        # Extract value between quotes and clean it thoroughly
+                        val = line.split('=')[1].strip().replace('"', '')
+                        return "".join(c for c in val if c.isalnum())  # Only alphanumeric
+        except (subprocess.SubprocessError, subprocess.TimeoutExpired, OSError, FileNotFoundError):
             pass
-        return platform.node()
+        return platform.node().strip()
     
     @staticmethod
     def get_disk_id() -> str:
@@ -184,7 +205,8 @@ class MachineFingerprint:
                 output = subprocess.check_output(
                     ['wmic', 'diskdrive', 'get', 'SerialNumber'],
                     stderr=subprocess.DEVNULL,
-                    creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == 'Windows' else 0
+                    creationflags=subprocess.CREATE_NO_WINDOW if platform.system() == 'Windows' else 0,
+                    timeout=5
                 ).decode()
                 lines = output.strip().split('\n')
                 if len(lines) > 1:
@@ -192,21 +214,22 @@ class MachineFingerprint:
             elif platform.system() == 'Darwin':  # macOS
                 output = subprocess.check_output(
                     ['diskutil', 'info', '/'],
-                    stderr=subprocess.DEVNULL
+                    stderr=subprocess.DEVNULL,
+                    timeout=5
                 ).decode()
                 for line in output.split('\n'):
                     if 'Volume UUID' in line:
-                        return line.split(':')[1].strip()
-        except (subprocess.SubprocessError, OSError, FileNotFoundError):
+                        return line.split(':')[-1].strip()
+        except (subprocess.SubprocessError, subprocess.TimeoutExpired, OSError, FileNotFoundError):
             pass
         return str(uuid.getnode())
     
     @classmethod
     def generate(cls) -> str:
         """Generate machine fingerprint hash"""
-        cpu = cls.get_cpu_id()
-        mb = cls.get_motherboard_id()
-        disk = cls.get_disk_id()
+        cpu = cls.get_cpu_id().strip()
+        mb = cls.get_motherboard_id().strip()
+        disk = cls.get_disk_id().strip()
         
         # Combine and hash
         combined = f"{cpu}|{mb}|{disk}|{platform.system()}"
@@ -315,17 +338,28 @@ class LicenseValidator:
     
     def validate_key(self, license_key: str) -> Tuple[bool, str]:
         """
-        Validate license key format
+        Validate license key format (basic format check only)
+        Actual verification is done online by Supabase when activating
         
         Returns:
             Tuple of (is_valid, message)
         """
-        result = self.generator.decode(license_key)
-        if result is None:
-            return (False, "無效的序號格式")
+        license_key = license_key.strip().upper()
         
-        license_type, created_at, transfers_allowed = result
-        return (True, f"序號有效 ({license_type})")
+        # Basic format check: CANTO-XXXX-XXXX-XXXX-XXXX (25 chars with dashes)
+        if not license_key.startswith("CANTO-"):
+            return (False, "序號格式錯誤：需要以 CANTO- 開頭")
+        
+        # Remove dashes and check length
+        key_body = license_key.replace("CANTO-", "").replace("-", "")
+        if len(key_body) != 16:
+            return (False, "序號長度錯誤：需要 16 位字符")
+        
+        # Check if alphanumeric
+        if not key_body.isalnum():
+            return (False, "序號格式錯誤：只能包含字母和數字")
+        
+        return (True, "序號格式正確，請按「啟用授權」進行線上驗證")
     
     def activate(self, license_key: str, force_transfer: bool = False) -> Tuple[bool, str]:
         """
@@ -341,85 +375,46 @@ class LicenseValidator:
         license_key = license_key.strip().upper()
         current_fingerprint = MachineFingerprint.generate()
         
-        # ==================== Online Verification (Primary) ====================
-        if self.supabase and USE_ONLINE_VERIFICATION:
-            success, result = self.supabase.activate(license_key, current_fingerprint, force_transfer)
-            
-            if success:
-                # Decode to get license info (for local cache)
-                decoded = self.generator.decode(license_key)
-                license_type = decoded[0] if decoded else 'permanent'
-                transfers_allowed = decoded[2] if decoded else 1
-                
-                # Save to local cache
-                license_info = LicenseInfo(
-                    license_type=license_type,
-                    created_at=int(time.time()),
-                    machine_hash=current_fingerprint[:16],
-                    transfers_remaining=result.get('transfers_remaining', 0),
-                    activated_at=int(time.time()),
-                    machine_fingerprint=current_fingerprint,
-                    last_verified_online=int(time.time())
-                )
-                self.save_license(license_info)
-                return (True, result.get('message', '授權成功！'))
-            
-            # Check if need transfer confirmation
-            if result.get('require_transfer'):
-                remaining = result.get('transfers_remaining', 0)
-                return (False, f"序號已在其他機器啟用，剩餘轉移次數: {remaining}")
-            
-            # If not offline error, return the error
-            if not result.get('offline'):
-                return (False, result.get('message', '授權失敗'))
+        # ==================== Online Verification Only ====================
+        if not self.supabase or not USE_ONLINE_VERIFICATION:
+            return (False, "授權服務未配置，請聯繫開發者")
         
-        # ==================== Offline Fallback ====================
-        # Validate key format
-        decoded = self.generator.decode(license_key)
-        if decoded is None:
-            return (False, "無效的序號")
+        success, result = self.supabase.activate(license_key, current_fingerprint, force_transfer)
         
-        license_type, created_at, transfers_allowed = decoded
+        if success:
+            # Save to local cache for offline use after activation
+            license_info = LicenseInfo(
+                license_type=result.get('license_type', 'permanent'),
+                created_at=int(time.time()),
+                machine_hash=current_fingerprint[:16],
+                transfers_remaining=result.get('transfers_remaining', 0),
+                activated_at=int(time.time()),
+                machine_fingerprint=current_fingerprint,
+                last_verified_online=int(time.time())
+            )
+            self.save_license(license_info)
+            return (True, result.get('message', '授權成功！'))
         
-        # Check if already activated
-        if self.license_file.exists():
-            existing = self.load_license()
-            if existing:
-                # Check if same machine
-                if existing.machine_fingerprint == current_fingerprint:
-                    return (True, "序號已在本機啟用")
-                
-                # Different machine - check transfers
-                if existing.transfers_remaining <= 0:
-                    return (False, "序號轉移次數已用完")
-                
-                if not force_transfer:
-                    return (False, f"序號已在其他機器啟用，還有 {existing.transfers_remaining} 次轉移機會")
-                
-                # Transfer to new machine
-                transfers_remaining = existing.transfers_remaining - 1
-        else:
-            # First activation
-            transfers_remaining = transfers_allowed
+        # Check if need transfer confirmation
+        if result.get('require_transfer'):
+            remaining = result.get('transfers_remaining', 0)
+            return (False, f"序號已在其他機器啟用，剩餘轉移次數: {remaining}")
         
-        # Create license info
-        license_info = LicenseInfo(
-            license_type=license_type,
-            created_at=created_at,
-            machine_hash=current_fingerprint[:16],
-            transfers_remaining=transfers_remaining,
-            activated_at=int(time.time()),
-            machine_fingerprint=current_fingerprint,
-            last_verified_online=0  # Offline activation
-        )
+        # Handle network error
+        if result.get('offline'):
+            return (False, "無法連接授權服務器，請檢查網絡連接")
         
-        # Save license
-        self.save_license(license_info)
-        
-        return (True, "授權成功！（離線模式）")
+        return (False, result.get('message', '授權失敗'))
     
     def save_license(self, license_info: LicenseInfo):
         """Save license to encrypted file"""
+        if not HAS_CRYPTOGRAPHY:
+            # Fallback: save as plain JSON (less secure but functional)
+            data = json.dumps(asdict(license_info), ensure_ascii=False)
+            self.license_file.parent.mkdir(parents=True, exist_ok=True)
+            self.license_file.write_text(data, encoding='utf-8')
+            return
+        
         # Encrypt license data
         key_hash = hashlib.sha256(MASTER_KEY).digest()
         cipher = Fernet(base64.urlsafe_b64encode(key_hash))
@@ -430,12 +425,28 @@ class LicenseValidator:
         self.license_file.parent.mkdir(parents=True, exist_ok=True)
         self.license_file.write_bytes(encrypted)
     
+    def clear_license(self) -> bool:
+        """Clear local license file"""
+        try:
+            if self.license_file.exists():
+                self.license_file.unlink()
+                return True
+            return False
+        except Exception as e:
+            print(f"Error clearing license: {e}")
+            return False
+            
     def load_license(self) -> Optional[LicenseInfo]:
         """Load license from file"""
         if not self.license_file.exists():
             return None
         
         try:
+            if not HAS_CRYPTOGRAPHY:
+                # Fallback: load as plain JSON
+                data = json.loads(self.license_file.read_text(encoding='utf-8'))
+                return LicenseInfo(**data)
+            
             # Decrypt license data
             key_hash = hashlib.sha256(MASTER_KEY).digest()
             cipher = Fernet(base64.urlsafe_b64encode(key_hash))
@@ -514,3 +525,7 @@ class LicenseManager:
     def validate_key(self, license_key: str) -> Tuple[bool, str]:
         """Validate license key format"""
         return self.validator.validate_key(license_key)
+
+    def clear_license(self) -> bool:
+        """Clear local license"""
+        return self.validator.clear_license()

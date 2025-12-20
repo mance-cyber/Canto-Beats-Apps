@@ -286,3 +286,489 @@ Traceback (most recent call last):
     except Exception as e:
     ^^^^^^
 SyntaxError: invalid syntax
+
+Crash at: 2025-12-17 19:38:06.488498
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 2098, in eventFilter
+    def eventFilter(self, obj, event):
+    
+KeyboardInterrupt
+
+Crash at: 2025-12-17 19:40:52.447420
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 2098, in eventFilter
+    def eventFilter(self, obj, event):
+    
+KeyboardInterrupt
+
+Crash at: 2025-12-17 19:56:07.439560
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 2098, in eventFilter
+    def eventFilter(self, obj, event):
+    
+KeyboardInterrupt
+
+Crash at: 2025-12-17 19:56:17.436014
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 2098, in eventFilter
+    def eventFilter(self, obj, event):
+    
+KeyboardInterrupt
+
+Crash at: 2025-12-17 19:56:27.435178
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 2098, in eventFilter
+    def eventFilter(self, obj, event):
+    
+KeyboardInterrupt
+
+Crash at: 2025-12-17 21:00:54.531772
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 2098, in eventFilter
+    (35, "正在生成字幕..."),
+    
+KeyboardInterrupt
+
+Crash at: 2025-12-17 21:01:04.532084
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 2098, in eventFilter
+    (35, "正在生成字幕..."),
+    
+KeyboardInterrupt
+
+Crash at: 2025-12-18 01:37:07.667149
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/dist/Canto-beats.app/Contents/Frameworks/src/ui/main_window.py", line 2154, in eventFilter
+    def eventFilter(self, obj, event):
+    
+KeyboardInterrupt
+
+Crash at: 2025-12-18 02:25:05.881422
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1072, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 02:25:05.882446
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1072, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 02:32:02.498259
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1136, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 02:32:02.499248
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1136, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 02:32:12.091291
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 279, in <lambda>
+    export_srt.triggered.connect(lambda: self._export_subtitles('srt'))
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: MainWindow._export_subtitles() takes 1 positional argument but 2 were given
+
+Crash at: 2025-12-18 02:32:18.240293
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 283, in <lambda>
+    export_ass.triggered.connect(lambda: self._export_subtitles('ass'))
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: MainWindow._export_subtitles() takes 1 positional argument but 2 were given
+
+Crash at: 2025-12-18 02:32:54.314845
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 2154, in eventFilter
+KeyboardInterrupt
+
+Crash at: 2025-12-18 02:38:33.088597
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1136, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 02:38:33.089594
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1136, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 02:39:01.909774
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 2270, in eventFilter
+KeyboardInterrupt
+
+Crash at: 2025-12-18 02:43:16.911616
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 2271, in eventFilter
+    time.sleep(0.5)
+    
+KeyboardInterrupt
+
+Crash at: 2025-12-18 02:46:15.661069
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 2276, in eventFilter
+    def eventFilter(self, obj, event):
+    
+KeyboardInterrupt
+
+Crash at: 2025-12-18 13:46:57.168591
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 13:46:57.169615
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 14:03:34.605356
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 14:03:34.606403
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 14:23:40.340394
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 14:23:40.341439
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 14:47:08.010823
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 14:47:08.011772
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 14:53:13.753126
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 14:53:13.754389
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 14:56:15.957378
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:00:25.780130
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:00:25.781145
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:00:25.781543
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:03:58.576918
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:03:58.577906
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:08:28.436064
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:08:28.438118
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:12:18.351696
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:12:18.352757
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:15:41.438387
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:15:41.439436
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:16:22.069858
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:21:25.713493
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:21:25.714460
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:32:59.667439
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:32:59.668716
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:36:01.442973
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-18 15:36:01.443922
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1255, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-19 11:01:20.502293
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1259, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-19 11:01:20.503643
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1259, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:10:15.145822
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:10:15.146968
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:16:32.263435
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:16:32.264551
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:17:49.933296
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:17:49.934528
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:19:07.521110
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:19:07.522345
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:26:11.317930
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:26:11.318902
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:30:43.879007
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:30:43.880361
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:30:43.880763
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:36:00.911024
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:36:00.912207
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:44:50.807498
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:44:50.808449
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:50:26.139401
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 00:50:26.140428
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'

@@ -16,6 +16,13 @@ from models.qwen_llm import QwenLLM
 from models.vad_processor import VADProcessor
 from utils.logger import setup_logger
 
+# Try to import MLX Whisper for Apple Silicon acceleration
+try:
+    from utils.whisper_mlx import MLXWhisperASR, get_best_whisper_backend
+    HAS_MLX_WHISPER = MLXWhisperASR.is_available()
+except ImportError:
+    HAS_MLX_WHISPER = False
+
 logger = setup_logger()
 
 
@@ -76,19 +83,48 @@ class SubtitlePipelineV2:
         logger.info(f"VRAM: {self.profile.vram_gb} GB")
         logger.info(f"LLM refinement: {'enabled' if self.enable_llm else 'disabled'}")
     
-    def _load_asr(self, progress_callback: Optional[Callable] = None):
-        """Load ASR model only (sequential loading for memory efficiency)."""
+    def _load_asr(self, progress_callback: Optional[Callable] = None, status_callback: Optional[Callable] = None):
+        """Load ASR model with Apple Silicon priority: CoreML > MPS > CPU.
+        
+        Args:
+            progress_callback: Callback for progress percentage (0-100)
+            status_callback: Callback for status message updates (e.g., "正在下載模型...")
+        """
         if self.asr is not None and self.asr.is_loaded:
             return
-            
-        # Load ASR model with profile-selected model
-        logger.info(f"Loading ASR model: {self.profile.asr_model}")
+
         if progress_callback:
             progress_callback(10)
-            
+
+        # Priority: MLX Whisper (CoreML/MPS) > faster-whisper (CPU)
+        if HAS_MLX_WHISPER:
+            logger.info(f"🍎 Loading MLX Whisper (Apple Silicon optimized): {self.profile.asr_model}")
+            try:
+                if status_callback:
+                    status_callback("正在準備 AI 工具...")
+                
+                self.asr = MLXWhisperASR(model_size=self.profile.asr_model)
+                
+                # Pass status callback to load_model for download progress
+                self.asr.load_model(progress_callback=status_callback)
+                
+                logger.info(f"⚡ MLX Whisper loaded on {self.asr.get_backend_type().upper()}")
+                
+                if status_callback:
+                    status_callback("AI 工具加載完成！")
+                return
+            except Exception as e:
+                logger.warning(f"MLX Whisper failed, falling back to faster-whisper: {e}")
+                if status_callback:
+                    status_callback("正在切換 AI 工具...")
+
+        # Fallback: faster-whisper (CPU)
+        logger.info(f"Loading faster-whisper ASR model: {self.profile.asr_model}")
+        if status_callback:
+            status_callback("正在加載 AI 工具...")
         self.asr = WhisperASR(self.config, model_size=self.profile.asr_model)
         self.asr.load_model()
-        logger.info("ASR model loaded successfully")
+        logger.info("ASR model loaded successfully (CPU mode)")
     
     def _unload_asr(self):
         """Unload ASR model to free GPU memory for LLM."""
@@ -105,7 +141,10 @@ class SubtitlePipelineV2:
             
             # Force garbage collection and clear GPU cache
             gc.collect()
-            if torch.cuda.is_available():
+            # Cross-platform GPU memory cleanup
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+            elif torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
             logger.info("ASR unloaded, GPU memory freed")
@@ -129,29 +168,63 @@ class SubtitlePipelineV2:
     def _extract_audio(self, video_path: Path) -> str:
         """Extract audio from video file."""
         import subprocess
+        from core.path_setup import get_ffmpeg_path
         
         audio_path = self.temp_dir / f"{video_path.stem}_audio.wav"
         
         logger.info(f"Extracting audio from video: {video_path}")
         
+        # Use get_ffmpeg_path() to get full path (works in packaged app)
+        ffmpeg_path = get_ffmpeg_path()
+        logger.info(f"Using FFmpeg: {ffmpeg_path}")
+        
+        # Check if FFmpeg actually exists at that path
+        ffmpeg_exists = Path(ffmpeg_path).exists() if ffmpeg_path != 'ffmpeg' else True
+        if not ffmpeg_exists and ffmpeg_path != 'ffmpeg':
+            logger.error(f"FFmpeg not found at: {ffmpeg_path}")
+            raise FileNotFoundError(
+                f"FFmpeg 未找到！請安裝 FFmpeg:\n"
+                f"  macOS: brew install ffmpeg\n"
+                f"  預期路徑: {ffmpeg_path}"
+            )
+        
         cmd = [
-            'ffmpeg', '-y', '-i', str(video_path),
+            ffmpeg_path, '-y', '-i', str(video_path),
             '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
             str(audio_path)
         ]
         
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-        )
+        logger.info(f"FFmpeg command: {' '.join(cmd)}")
         
-        if result.returncode != 0:
-            raise RuntimeError(f"FFmpeg failed: {result.stderr}")
-        
-        logger.info(f"Audio extracted to: {audio_path}")
-        return str(audio_path)
+        try:
+            # Add timeout (5 minutes should be enough for most videos)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minute timeout
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"FFmpeg stderr: {result.stderr}")
+                raise RuntimeError(f"FFmpeg 失敗: {result.stderr[:500]}")
+            
+            # Verify output file exists
+            if not audio_path.exists():
+                raise RuntimeError(f"音頻檔案未生成: {audio_path}")
+            
+            logger.info(f"Audio extracted to: {audio_path}")
+            return str(audio_path)
+            
+        except subprocess.TimeoutExpired:
+            logger.error("FFmpeg timeout after 5 minutes")
+            raise RuntimeError("FFmpeg 超時（超過5分鐘），請檢查影片檔案是否正確")
+        except FileNotFoundError as e:
+            logger.error(f"FFmpeg not found: {e}")
+            raise FileNotFoundError(
+                f"FFmpeg 未找到！請安裝 FFmpeg:\n"
+                f"  macOS: brew install ffmpeg"
+            )
     
     # ==================== 粵語錯字清單 (擴展版) ====================
     # Whisper 常見粵語轉錄錯誤 → 正確寫法
@@ -270,6 +343,20 @@ class SubtitlePipelineV2:
         "O k": "OK",
         "bye bye": "bye bye",
         "thank you": "thank you",
+        
+        # ===== 粵語同音字校正 (Whisper 常見錯誤) =====
+        "執粒": "執笠",       # 執笠 = 結業
+        "執左粒": "執左笠",
+        "執咗粒": "執咗笠",
+        "抽薪": "抽身",       # 抽身 (金蟬脫殼)
+        "多日倍": "多一倍",   # 多一倍
+        "多日賠": "多一倍",   # 多一倍 (另一變體)
+        "係統": "系統",       # 系統
+        "專位": "專為",       # 專為
+        "化巧": "花巧",       # 花巧
+        "冇巨大": "冒巨大",   # 冒巨大風險
+        "冇風險": "冒風險",   # 冒風險
+        "遊意": "猶豫",       # 猶豫
         
         # ===== 標點符號清理 =====
         "﹚": "",         # 移除多餘括號
@@ -413,7 +500,8 @@ class SubtitlePipelineV2:
     def process(
         self,
         input_path: str,
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
+        status_callback: Optional[Callable] = None
     ) -> List[SubtitleEntryV2]:
         """
         Run the subtitle generation pipeline with sequential model loading.
@@ -429,6 +517,7 @@ class SubtitlePipelineV2:
         Args:
             input_path: Path to audio/video file
             progress_callback: Progress callback (0-100)
+            status_callback: Status message callback for UI updates
             
         Returns:
             List of SubtitleEntryV2 with colloquial (and optional formal) text
@@ -446,16 +535,20 @@ class SubtitlePipelineV2:
         
         logger.info("Pre-clearing GPU memory before pipeline start...")
         gc.collect()
-        if torch.cuda.is_available():
+        # Cross-platform GPU memory cleanup
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+            logger.info("MPS memory cache cleared, ready for model loading")
+        elif torch.cuda.is_available():
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
-            logger.info("GPU memory cache cleared, ready for model loading")
+            logger.info("CUDA memory cache cleared, ready for model loading")
         
         if progress_callback:
             progress_callback(5)
         
         # Step 1: Load ASR model only (5-15%)
-        self._load_asr(progress_callback)
+        self._load_asr(progress_callback, status_callback=status_callback)
         
         # Step 2: Prepare audio (15-20%)
         if progress_callback:
@@ -473,7 +566,10 @@ class SubtitlePipelineV2:
             progress_callback(20)
         
         logger.info("Running Whisper transcription...")
-        result = self.asr.transcribe(audio_path, language='yue')
+        
+        # Get custom prompt from config (user-defined vocabulary for better recognition)
+        custom_prompt = self.config.get("whisper_custom_prompt", "")
+        result = self.asr.transcribe(audio_path, language='yue', custom_prompt=custom_prompt)
         
         whisper_segments = result.get('segments', [])
         logger.info(f"Whisper produced {len(whisper_segments)} segments")
@@ -541,12 +637,12 @@ class SubtitlePipelineV2:
             logger.info("Starting LLM refinement...")
             final_subtitles = self._refine_with_llm(whisper_segments, progress_callback)
         else:
-            # No LLM, convert segments directly
+            # No LLM, but still apply simple corrections
             final_subtitles = [
                 SubtitleEntryV2(
                     start=seg.start,
                     end=seg.end,
-                    colloquial=seg.text.strip(),
+                    colloquial=self._apply_simple_corrections(seg.text.strip()),
                     formal=None
                 )
                 for seg in whisper_segments
@@ -591,14 +687,17 @@ class SubtitlePipelineV2:
         # Force garbage collection
         gc.collect()
         
-        # Clear GPU memory cache (safe to call from main thread)
-        if torch.cuda.is_available():
-            try:
+        # Cross-platform GPU memory cleanup
+        try:
+            if torch.backends.mps.is_available():
+                torch.mps.empty_cache()
+                logger.info("MPS memory cache cleared")
+            elif torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 torch.cuda.synchronize()
-                logger.info("GPU memory cache cleared")
-            except Exception as e:
-                logger.warning(f"GPU cache clear error: {e}")
+                logger.info("CUDA memory cache cleared")
+        except Exception as e:
+            logger.warning(f"GPU cache clear error: {e}")
         
         logger.info("Pipeline cleanup complete")
     

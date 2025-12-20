@@ -97,9 +97,9 @@ class HardwareDetector:
         },
         PerformanceTier.ENTRY: {
             "asr_model": "large-v3",
-            "asr_compute_type": "int8",
+            "asr_compute_type": "float16",  # float16 for MPS compatibility (int8 not supported)
             "llm_a_model": "Qwen/Qwen2.5-3B-Instruct",  # 3B model - faster and lighter
-            "llm_a_quantization": "4bit",  # 4-bit for 6-10GB VRAM (your RTX 3070 Ti)
+            "llm_a_quantization": "fp16",  # float16 for Apple Silicon MPS
             "llm_b_model": "",
             "llm_b_quantization": None,
             "llm_b_enabled": False,
@@ -154,11 +154,32 @@ class HardwareDetector:
         """
         Detect GPU availability and VRAM.
         
+        Priority: Apple MPS > NVIDIA CUDA > CPU
+        
         Returns:
             Tuple of (device, vram_in_gb)
         """
+        # 1. Check Apple Silicon MPS (Metal Performance Shaders)
+        try:
+            if torch.backends.mps.is_available() and torch.backends.mps.is_built():
+                logger.info("Apple MPS (Metal) detected - Apple Silicon GPU")
+
+                # MPS shares unified memory - calculate effective VRAM (70% of system RAM)
+                try:
+                    import psutil
+                    system_ram_gb = psutil.virtual_memory().total / (1024 ** 3)
+                    effective_vram = system_ram_gb * 0.7
+                    logger.info(f"MPS effective VRAM: {effective_vram:.1f} GB (70% of {system_ram_gb:.1f} GB system RAM)")
+                    return "mps", effective_vram
+                except ImportError:
+                    logger.warning("psutil not available, assuming 16GB effective VRAM")
+                    return "mps", 16.0  # Conservative estimate for M1/M2 Macs
+        except Exception as e:
+            logger.debug(f"MPS check failed: {e}")
+        
+        # 2. Check NVIDIA CUDA
         if not torch.cuda.is_available():
-            logger.info("CUDA not available, using CPU mode")
+            logger.info("No GPU detected, using CPU mode")
             return "cpu", 0.0
         
         try:
@@ -180,7 +201,13 @@ class HardwareDetector:
             return "cpu", 0.0
     
     def _determine_tier(self, vram_gb: float, device: str) -> PerformanceTier:
-        """Determine performance tier based on VRAM."""
+        """Determine performance tier based on device and VRAM."""
+        # Apple Silicon MPS - use ENTRY tier with float16 (MPS doesn't support int8)
+        if device == "mps":
+            logger.info("Apple Silicon detected - using ENTRY tier with float16")
+            return PerformanceTier.ENTRY
+        
+        # CPU only
         if device == "cpu" or vram_gb < self.ENTRY_THRESHOLD:
             return PerformanceTier.CPU_ONLY
         elif vram_gb < self.MAINSTREAM_THRESHOLD:

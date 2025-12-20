@@ -230,6 +230,97 @@ def get_resource_path(relative_path: str) -> str:
     return relative_path
 
 
+def get_ffmpeg_path() -> str:
+    """
+    Get the full path to ffmpeg executable.
+    Works in both development and packaged app environments.
+    
+    IMPORTANT: For macOS packaged apps (.app bundles), shutil.which() often fails
+    because the sandboxed environment doesn't inherit the full system PATH.
+    We check known paths FIRST before falling back to shutil.which.
+    
+    Returns:
+        Full path to ffmpeg, or 'ffmpeg' if not found (relies on PATH)
+    """
+    import shutil
+    
+    # For macOS, check known Homebrew paths FIRST (before shutil.which)
+    # This is essential for packaged .app bundles where PATH is limited
+    if sys.platform == 'darwin':
+        known_paths = [
+            '/opt/homebrew/bin/ffmpeg',  # Apple Silicon Homebrew
+            '/usr/local/bin/ffmpeg',      # Intel Mac Homebrew
+            '/usr/bin/ffmpeg',            # System ffmpeg (rare)
+        ]
+        
+        for path in known_paths:
+            if Path(path).exists():
+                return path
+    
+    # Try shutil.which (works in development/non-sandboxed environments)
+    ffmpeg_path = shutil.which('ffmpeg')
+    if ffmpeg_path:
+        return ffmpeg_path
+    
+    # Windows: check known paths
+    if sys.platform == 'win32':
+        known_paths = [
+            r'C:\Program Files\ffmpeg\bin\ffmpeg.exe',
+            r'C:\ffmpeg\bin\ffmpeg.exe',
+        ]
+        for path in known_paths:
+            if Path(path).exists():
+                return path
+    
+    # Last resort: return 'ffmpeg' and hope it's in PATH
+    return 'ffmpeg'
+
+
+def get_ffprobe_path() -> str:
+    """
+    Get the full path to ffprobe executable.
+    Works in both development and packaged app environments.
+    
+    IMPORTANT: For macOS packaged apps (.app bundles), shutil.which() often fails
+    because the sandboxed environment doesn't inherit the full system PATH.
+    We check known paths FIRST before falling back to shutil.which.
+    
+    Returns:
+        Full path to ffprobe, or 'ffprobe' if not found (relies on PATH)
+    """
+    import shutil
+    
+    # For macOS, check known Homebrew paths FIRST (before shutil.which)
+    if sys.platform == 'darwin':
+        known_paths = [
+            '/opt/homebrew/bin/ffprobe',  # Apple Silicon Homebrew
+            '/usr/local/bin/ffprobe',      # Intel Mac Homebrew
+            '/usr/bin/ffprobe',            # System ffprobe (rare)
+        ]
+        
+        for path in known_paths:
+            if Path(path).exists():
+                return path
+    
+    # Try shutil.which (works in development/non-sandboxed environments)
+    ffprobe_path = shutil.which('ffprobe')
+    if ffprobe_path:
+        return ffprobe_path
+    
+    # Windows: check known paths
+    if sys.platform == 'win32':
+        known_paths = [
+            r'C:\Program Files\ffmpeg\bin\ffprobe.exe',
+            r'C:\ffmpeg\bin\ffprobe.exe',
+        ]
+        for path in known_paths:
+            if Path(path).exists():
+                return path
+    
+    # Last resort: return 'ffprobe' and hope it's in PATH
+    return 'ffprobe'
+
+
 def get_icon_path(icon_name: str) -> str:
     """
     Get path to an icon file.
