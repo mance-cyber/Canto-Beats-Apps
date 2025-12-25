@@ -772,3 +772,164 @@ Traceback (most recent call last):
     self.progress_dialog.setValue(value)
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 19:54:29.363257
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 19:54:29.364560
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 20:02:21.791890
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 20:02:21.793176
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1288, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 20:06:42.534710
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:06:42.669209
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:06:42.671098
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:06:42.671654
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:06:42.672068
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:06:42.672433
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:06:42.676864
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:06:42.677339
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:06:42.677727
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:06:42.678139
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:06:42.816085
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:07:03.833872
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:07:03.837399
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:07:06.317043
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:07:06.317630
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:07:06.318035
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:07:06.318406
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1286, in _on_transcription_progress
+    if self.progress_dialog and not sip.isdeleted(self.progress_dialog):
+                                    ^^^
+NameError: name 'sip' is not defined
+
+Crash at: 2025-12-20 20:16:34.948968
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1289, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'
+
+Crash at: 2025-12-20 20:16:34.950207
+Traceback (most recent call last):
+  File "/Users/nicleung/Public/Canto-Beats-Apps/src/ui/main_window.py", line 1289, in _on_transcription_progress
+    self.progress_dialog.setValue(value)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'setValue'

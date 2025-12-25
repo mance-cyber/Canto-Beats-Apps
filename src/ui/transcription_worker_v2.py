@@ -72,7 +72,7 @@ class TranscribeWorkerV2(QObject):
                     return
                 if pct <= 15:
                     if self.is_first_time:
-                        msg = "首次下載 AI 工具中，請稍候（約 5-10 分鐘）..."
+                        msg = "首次下載 AI 工具中，請稍候..."
                     else:
                         msg = "正在加載 AI 工具..."
                 elif pct <= 25:
@@ -81,7 +81,7 @@ class TranscribeWorkerV2(QObject):
                     msg = "正在生成字幕..."
                 elif pct < 82:
                     if self.is_first_time:
-                        msg = "首次下載 AI 工具中，請稍候（約 3-5 分鐘）..."
+                        msg = "首次下載 AI 工具中，請稍候..."
                     else:
                         msg = "正在加載 AI 工具..."
                 elif pct < 95:
@@ -142,7 +142,7 @@ class TranscribeWorkerV2(QObject):
                 'hardware_tier': profile.tier.value if profile else 'unknown',
             }
             
-            self._emit_progress("處理完成!", 100)
+            self._emit_progress("處理完成！", 100)
             
             # Emit completed signal directly (Qt signals are thread-safe)
             self.completed.emit(result)

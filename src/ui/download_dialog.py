@@ -172,8 +172,21 @@ class ModelDownloadDialog(QDialog):
         # GIF animation using QMovie
         try:
             from pathlib import Path
+            import sys
             
-            gif_path = Path(__file__).parent.parent.parent / "public" / "Dnlooping.gif"
+            # Find GIF path - different in packaged app vs development
+            if getattr(sys, 'frozen', False):
+                # Packaged app: Contents/Resources/public/Dnlooping.gif
+                exe_dir = Path(sys.executable).parent  # Contents/MacOS
+                contents_dir = exe_dir.parent  # Contents/
+                gif_path = contents_dir / "Resources" / "public" / "Dnlooping.gif"
+                
+                # Fallback paths
+                if not gif_path.exists():
+                    gif_path = contents_dir / "Resources" / "Dnlooping.gif"
+            else:
+                # Development: project_root/public/Dnlooping.gif
+                gif_path = Path(__file__).parent.parent.parent / "public" / "Dnlooping.gif"
             
             if gif_path.exists():
                 # Load GIF animation

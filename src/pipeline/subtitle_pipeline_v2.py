@@ -167,64 +167,74 @@ class SubtitlePipelineV2:
     
     def _extract_audio(self, video_path: Path) -> str:
         """Extract audio from video file."""
-        import subprocess
-        from core.path_setup import get_ffmpeg_path
+        import numpy as np
         
         audio_path = self.temp_dir / f"{video_path.stem}_audio.wav"
         
         logger.info(f"Extracting audio from video: {video_path}")
         
-        # Use get_ffmpeg_path() to get full path (works in packaged app)
-        ffmpeg_path = get_ffmpeg_path()
-        logger.info(f"Using FFmpeg: {ffmpeg_path}")
-        
-        # Check if FFmpeg actually exists at that path
-        ffmpeg_exists = Path(ffmpeg_path).exists() if ffmpeg_path != 'ffmpeg' else True
-        if not ffmpeg_exists and ffmpeg_path != 'ffmpeg':
-            logger.error(f"FFmpeg not found at: {ffmpeg_path}")
-            raise FileNotFoundError(
-                f"FFmpeg 未找到！請安裝 FFmpeg:\n"
-                f"  macOS: brew install ffmpeg\n"
-                f"  預期路徑: {ffmpeg_path}"
-            )
-        
-        cmd = [
-            ffmpeg_path, '-y', '-i', str(video_path),
-            '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
-            str(audio_path)
-        ]
-        
-        logger.info(f"FFmpeg command: {' '.join(cmd)}")
-        
         try:
-            # Add timeout (5 minutes should be enough for most videos)
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minute timeout
-            )
+            # Use PyAV for audio extraction (includes FFmpeg libraries internally)
+            import av
+            import soundfile as sf
             
-            if result.returncode != 0:
-                logger.error(f"FFmpeg stderr: {result.stderr}")
-                raise RuntimeError(f"FFmpeg 失敗: {result.stderr[:500]}")
+            container = av.open(str(video_path))
             
-            # Verify output file exists
-            if not audio_path.exists():
-                raise RuntimeError(f"音頻檔案未生成: {audio_path}")
+            # Get audio stream
+            if not container.streams.audio:
+                raise RuntimeError("影片中沒有找到音頻軌道")
+            
+            audio_stream = container.streams.audio[0]
+            logger.info(f"Audio stream: {audio_stream.rate}Hz, {audio_stream.channels} channels")
+            
+            # Extract and decode audio frames
+            audio_frames = []
+            for frame in container.decode(audio_stream):
+                # Convert frame to numpy array
+                audio_frames.append(frame.to_ndarray())
+            
+            container.close()
+            
+            if not audio_frames:
+                raise RuntimeError("無法從影片提取音頻幀")
+            
+            # Concatenate all frames
+            audio_data = np.concatenate(audio_frames, axis=1)
+            
+            # Resample to 16kHz if needed
+            target_sr = 16000
+            if audio_stream.rate != target_sr:
+                try:
+                    import scipy.signal
+                    num_samples = int(len(audio_data[0]) * target_sr / audio_stream.rate)
+                    audio_data = scipy.signal.resample(audio_data, num_samples, axis=1)
+                    sample_rate = target_sr
+                    logger.info(f"Resampled from {audio_stream.rate}Hz to {target_sr}Hz")
+                except ImportError:
+                    # Fallback: use original sample rate if scipy not available
+                    sample_rate = audio_stream.rate
+                    logger.warning("scipy not available, using original sample rate")
+            else:
+                sample_rate = audio_stream.rate
+            
+            # Convert to mono if stereo
+            if audio_data.shape[0] > 1:
+                audio_data = np.mean(audio_data, axis=0)
+            else:
+                audio_data = audio_data[0]
+            
+            # Save as WAV
+            sf.write(str(audio_path), audio_data, sample_rate, subtype='PCM_16')
             
             logger.info(f"Audio extracted to: {audio_path}")
             return str(audio_path)
             
-        except subprocess.TimeoutExpired:
-            logger.error("FFmpeg timeout after 5 minutes")
-            raise RuntimeError("FFmpeg 超時（超過5分鐘），請檢查影片檔案是否正確")
-        except FileNotFoundError as e:
-            logger.error(f"FFmpeg not found: {e}")
-            raise FileNotFoundError(
-                f"FFmpeg 未找到！請安裝 FFmpeg:\n"
-                f"  macOS: brew install ffmpeg"
-            )
+        except ImportError as e:
+            logger.error(f"Required library not available: {e}")
+            raise RuntimeError(f"音頻處理庫未找到: {e}")
+        except Exception as e:
+            logger.error(f"Audio extraction failed: {e}")
+            raise RuntimeError(f"音頻提取失敗: {e}")
     
     # ==================== 粵語錯字清單 (擴展版) ====================
     # Whisper 常見粵語轉錄錯誤 → 正確寫法
@@ -357,6 +367,17 @@ class SubtitlePipelineV2:
         "冇巨大": "冒巨大",   # 冒巨大風險
         "冇風險": "冒風險",   # 冒風險
         "遊意": "猶豫",       # 猶豫
+        
+        # New User Reported (2025-12-20)
+        "有冤無老訴": "有冤無路訴",
+        "凌射": "零舍",
+        "心希感受": "身同感受",
+        "心痛感受": "身同感受",
+        "物外": "默哀",
+        "Porn": "Point",
+        "porn": "point",
+        "Grip": "Group",
+        "grip": "group",
         
         # ===== 標點符號清理 =====
         "﹚": "",         # 移除多餘括號
@@ -566,10 +587,19 @@ class SubtitlePipelineV2:
             progress_callback(20)
         
         logger.info("Running Whisper transcription...")
-        
+
         # Get custom prompt from config (user-defined vocabulary for better recognition)
         custom_prompt = self.config.get("whisper_custom_prompt", "")
-        result = self.asr.transcribe(audio_path, language='yue', custom_prompt=custom_prompt)
+
+        # Build initial_prompt with custom vocabulary
+        initial_prompt = None
+        if custom_prompt:
+            # Combine default Cantonese prompt with user's custom vocabulary
+            base_prompt = "以下係廣東話對白，請用粵語口語字幕：佢、喺、睇、嘅、咁、啲、咗、嚟、冇、諗、唔、咩、乜、點、邊、噉、嗰、呢、哋、咪、囉、喎、啦、㗎、吖。"
+            initial_prompt = f"{base_prompt}用戶指定詞彙：{custom_prompt}。"
+            logger.info(f"Using custom prompt: {custom_prompt[:50]}...")
+
+        result = self.asr.transcribe(audio_path, language='yue', initial_prompt=initial_prompt)
         
         whisper_segments = result.get('segments', [])
         logger.info(f"Whisper produced {len(whisper_segments)} segments")
@@ -587,14 +617,14 @@ class SubtitlePipelineV2:
             progress_callback(62)
         
         try:
-            # Initialize VAD processor (高敏感度配置)
+            # Initialize VAD processor (優化斷句連貫性)
             if self.vad is None:
                 self.vad = VADProcessor(
                     self.config,
-                    threshold=0.1,              # 降低閾值 (0.5->0.35)，更敏感檢測語音
-                    min_silence_duration_ms=20, # 降低靜音門檻 (200->150)，更精細斷句
-                    min_speech_duration_ms=50,  # 降低語音門檻 (250->200)，保留短句
-                    speech_pad_ms=300            # 減少填充 (400->300)，更貼近實際邊界
+                    threshold=0.15,                # 稍微降低敏感度，避免將停頓誤判為語音
+                    min_silence_duration_ms=500,   # 提高靜音門檻 (20→500ms)，減少切分
+                    min_speech_duration_ms=100,    # 提高最短語音長度，過濾氣音
+                    speech_pad_ms=500              # 增加填充 (300→500ms)，保留完整語句
                 )
             
             # Detect voice segments
@@ -608,8 +638,8 @@ class SubtitlePipelineV2:
             optimized_segments = self.vad.merge_with_transcription(
                 whisper_segments,
                 voice_segments,
-                max_gap=0.2,  # 縮短合併間隔 (0.8->0.5s)，更多獨立句子
-                max_chars=22  # 縮短每段最大字數 (25->22)，更適合字幕
+                max_gap=1.0,  # 上調合併間隔 (0.5->1.0s)，允許更多合併
+                max_chars=42  # 上調每段最大字數 (22->42)，避免切斷長句
             )
             logger.info(f"VAD optimization: {len(whisper_segments)} -> {len(optimized_segments)} segments")
             

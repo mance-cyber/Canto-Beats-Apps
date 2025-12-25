@@ -70,7 +70,7 @@ class VADProcessor(ModelManager):
         logger.info(f"VAD processor initialized (threshold={threshold})")
     
     def load_model(self):
-        """Load Silero VAD model."""
+        """Load Silero VAD model from bundled file or torch hub."""
         if self.is_loaded:
             logger.warning("VAD model already loaded")
             return
@@ -78,36 +78,127 @@ class VADProcessor(ModelManager):
         logger.info("Loading Silero VAD model")
         
         try:
-            # Download Silero VAD model from torch hub
-            self.model, utils = torch.hub.load(
-                repo_or_dir='snakers4/silero-vad',
-                model='silero_vad',
-                force_reload=False,
-                onnx=False,
-                trust_repo=True  # Required for newer PyTorch versions
-            )
+            # First try to load bundled model (for packaged app)
+            bundled_model_path = self._find_bundled_vad_model()
             
-            # Extract utility functions
-            (self.get_speech_timestamps,
-             self.save_audio,
-             self.read_audio,
-             self.VADIterator,
-             self.collect_chunks) = utils
-            
-            # Override read_audio to use soundfile instead of torchaudio
-            # This avoids torchcodec dependency issues on Windows Standalone
-            self.read_audio = self._read_audio_soundfile
-            
-            # Move model to device
-            self.model = self.model.to(self.device)
-            self.is_loaded = True
-            
-            logger.info(f"Silero VAD model loaded on {self.device}")
+            if bundled_model_path and bundled_model_path.exists():
+                logger.info(f"Loading bundled VAD model from: {bundled_model_path}")
+                self.model = torch.jit.load(str(bundled_model_path), map_location=self.device)
+                self.model.eval()
+                
+                # Set up utility functions - use bundled implementation
+                self.get_speech_timestamps = self._bundled_get_speech_timestamps
+                self.save_audio = None
+                self.read_audio = self._read_audio_soundfile
+                self.VADIterator = None
+                self.collect_chunks = None
+                self.is_loaded = True
+                
+                logger.info(f"Bundled Silero VAD model loaded on {self.device}")
+            else:
+                # Fallback to torch hub download
+                logger.info("Bundled model not found, downloading from torch hub...")
+                self.model, utils = torch.hub.load(
+                    repo_or_dir='snakers4/silero-vad',
+                    model='silero_vad',
+                    force_reload=False,
+                    onnx=False,
+                    trust_repo=True
+                )
+                
+                (self.get_speech_timestamps,
+                 self.save_audio,
+                 self.read_audio,
+                 self.VADIterator,
+                 self.collect_chunks) = utils
+                
+                self.read_audio = self._read_audio_soundfile
+                self.model = self.model.to(self.device)
+                self.is_loaded = True
+                
+                logger.info(f"Silero VAD model downloaded and loaded on {self.device}")
             
         except Exception as e:
             logger.error(f"Failed to load VAD model: {e}")
             raise
     
+    def _find_bundled_vad_model(self) -> Optional[Path]:
+        """Find bundled VAD model in packaged app or development environment."""
+        import sys
+        
+        possible_paths = []
+        
+        # For packaged macOS .app
+        if hasattr(sys, '_MEIPASS'):
+            possible_paths.append(Path(sys._MEIPASS) / 'public' / 'models' / 'silero_vad' / 'silero_vad.jit')
+        
+        # For macOS .app bundle structure
+        if sys.executable:
+            app_path = Path(sys.executable).parent.parent
+            possible_paths.extend([
+                app_path / 'Resources' / 'public' / 'models' / 'silero_vad' / 'silero_vad.jit',
+                app_path / 'Frameworks' / 'public' / 'models' / 'silero_vad' / 'silero_vad.jit',
+            ])
+        
+        # For development environment
+        project_root = Path(__file__).parent.parent.parent
+        possible_paths.append(project_root / 'public' / 'models' / 'silero_vad' / 'silero_vad.jit')
+        
+        for path in possible_paths:
+            if path.exists():
+                return path
+        
+        return None
+    
+    def _bundled_get_speech_timestamps(self, audio, model=None, **kwargs):
+        """Get speech timestamps using the bundled Silero VAD model."""
+        sampling_rate = kwargs.get('sampling_rate', 16000)
+        threshold = kwargs.get('threshold', self.threshold)
+        min_speech_duration_ms = kwargs.get('min_speech_duration_ms', self.min_speech_duration_ms)
+        
+        # Ensure audio is tensor
+        if isinstance(audio, np.ndarray):
+            audio = torch.from_numpy(audio).float()
+        if audio.dim() == 2:
+            audio = audio.mean(dim=0)
+        
+        # Normalize
+        audio = audio / (audio.abs().max() + 1e-8)
+        
+        speech_timestamps = []
+        window_size = 512  # 32ms at 16kHz
+        
+        self.model.reset_states()
+        current_speech = None
+        
+        for i in range(0, len(audio), window_size):
+            chunk = audio[i:i+window_size]
+            if len(chunk) < window_size:
+                chunk = torch.nn.functional.pad(chunk, (0, window_size - len(chunk)))
+            
+            speech_prob = self.model(chunk.unsqueeze(0), sampling_rate).item()
+            timestamp_samples = i
+            
+            if speech_prob >= threshold:
+                if current_speech is None:
+                    current_speech = {'start': timestamp_samples}
+            else:
+                if current_speech is not None:
+                    current_speech['end'] = timestamp_samples
+                    duration_ms = (current_speech['end'] - current_speech['start']) / sampling_rate * 1000
+                    if duration_ms >= min_speech_duration_ms:
+                        speech_timestamps.append(current_speech)
+                    current_speech = None
+        
+        if current_speech is not None:
+            current_speech['end'] = len(audio)
+            duration_ms = (current_speech['end'] - current_speech['start']) / sampling_rate * 1000
+            if duration_ms >= min_speech_duration_ms:
+                speech_timestamps.append(current_speech)
+        
+        return speech_timestamps
+
+
     def _read_audio_soundfile(self, path: str, sampling_rate: int = 16000):
         """
         Read audio using soundfile instead of torchaudio.

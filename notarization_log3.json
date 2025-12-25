@@ -1,0 +1,157 @@
+{
+  "logFormatVersion": 1,
+  "jobId": "3ad9466c-377f-43d9-81ec-45112f8c68fe",
+  "status": "Invalid",
+  "statusSummary": "Archive contains critical validation errors",
+  "statusCode": 4000,
+  "archiveFilename": "Canto-beats-macOS-Notarized.dmg",
+  "uploadDate": "2025-12-25T03:26:00.718Z",
+  "sha256": "5360fec7a68bfee69d1fa81d7438e8707638088ae607177be04ff8ece09845a1",
+  "ticketContents": null,
+  "issues": [
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/MacOS/Canto-beats",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/Python",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtVirtualKeyboardQml.framework/QtVirtualKeyboardQml",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtQmlMeta.framework/QtQmlMeta",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtPdf.framework/QtPdf",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtGui.framework/QtGui",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtDBus.framework/QtDBus",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtQuick.framework/QtQuick",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtCore.framework/QtCore",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtQml.framework/QtQml",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtQmlWorkerScript.framework/QtQmlWorkerScript",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtVirtualKeyboard.framework/QtVirtualKeyboard",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtOpenGL.framework/QtOpenGL",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtWidgets.framework/QtWidgets",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtNetwork.framework/QtNetwork",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtSvg.framework/QtSvg",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/PySide6/Qt/lib/QtQmlModels.framework/QtQmlModels",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    },
+    {
+      "severity": "error",
+      "code": null,
+      "path": "Canto-beats-macOS-Notarized.dmg/Canto-beats.app/Contents/Frameworks/Python.framework/Python",
+      "message": "The signature of the binary is invalid.",
+      "docUrl": "https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/resolving_common_notarization_issues#3087735",
+      "architecture": "arm64"
+    }
+  ]
+}

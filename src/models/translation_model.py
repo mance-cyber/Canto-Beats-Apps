@@ -1,5 +1,8 @@
 """
 Translation Model using MarianMT for offline English to Chinese translation.
+
+NOTE: Helsinki-NLP/opus-mt-en-zh outputs SIMPLIFIED Chinese by default.
+      StyleProcessor automatically converts to Traditional Chinese using OpenCC.
 """
 
 import torch
@@ -66,12 +69,12 @@ class TranslationModel(ModelManager):
     def translate(self, text: str) -> str:
         """
         Translate English text to Chinese.
-        
+
         Args:
             text: English text to translate
-            
+
         Returns:
-            Translated Chinese text
+            Translated Chinese text (SIMPLIFIED - caller should convert to Traditional)
         """
         if not text or not text.strip():
             return text

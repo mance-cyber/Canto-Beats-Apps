@@ -84,10 +84,19 @@ class TranscribeWorker(QThread):
             # so we just show "Processing..." at 30% and jump to 50% when done.
             # Or effectively it stays at 30% until done, then 50%.
             # User said "Then 50% start processing", implying 30->50 transition.
-            
+
+            # Get custom prompt from config (user-defined vocabulary)
+            custom_prompt = self.config.get("whisper_custom_prompt", "")
+            initial_prompt = None
+            if custom_prompt:
+                # Combine default Cantonese prompt with user's custom vocabulary
+                base_prompt = "以下係廣東話對白，請用粵語口語字幕：佢、喺、睇、嘅、咁、啲、咗、嚟、冇、諗、唔、咩、乜、點、邊、噉、嗰、呢、哋、咪、囉、喎、啦、㗎、吖。"
+                initial_prompt = f"{base_prompt}用戶指定詞彙：{custom_prompt}。"
+
             transcription_result = self.asr.transcribe(
                 str(audio_path),
-                language='yue'
+                language='yue',
+                initial_prompt=initial_prompt
             )
             
             if self._is_cancelled: return

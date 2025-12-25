@@ -14,8 +14,11 @@ class AppConfig:
     """Application configuration"""
     
     # Version info
-    version: str = "1.0.0-macOS"
+    version: str = "1.0.5-macOS"
     build_type: str = "lite"  # "lite" or "flagship"
+    
+    # First-time flags
+    first_transcription_done: bool = False  # Track if user has ever transcribed
     
     # Paths
     app_dir: str = ""
@@ -155,6 +158,9 @@ class Config:
         # MLX Whisper model path
         mlx_whisper_folder = hf_cache / "models--mlx-community--whisper-large-v3-mlx"
         
+        print(f"[DEBUG] Checking Whisper cache: {mlx_whisper_folder}")
+        print(f"[DEBUG] Folder exists: {mlx_whisper_folder.exists()}")
+        
         if mlx_whisper_folder.exists():
             # Check blobs directory for actual model content (weights.npz is ~3GB)
             blobs = mlx_whisper_folder / "blobs"
@@ -162,8 +168,10 @@ class Config:
                 blob_files = list(blobs.iterdir())
                 # Need at least 1GB of content (weights.npz is ~3GB)
                 total_size = sum(f.stat().st_size for f in blob_files if f.is_file())
+                print(f"[DEBUG] Blobs total size: {total_size / 1_000_000_000:.2f} GB")
                 if total_size > 1_000_000_000:  # At least 1GB
                     whisper_cached = True
+                    print(f"[DEBUG] Whisper cached via blobs (size check passed)")
             
             # Also check snapshots for .npz or .safetensors files
             if not whisper_cached:
@@ -174,8 +182,11 @@ class Config:
                             # Look for .npz (MLX format) or .safetensors
                             files = list(snapshot_dir.glob("*.npz")) + list(snapshot_dir.glob("*.safetensors"))
                             if files:
+                                print(f"[DEBUG] Found model files in snapshot: {[f.name for f in files]}")
                                 whisper_cached = True
                                 break
+        
+        print(f"[DEBUG] Whisper cached: {whisper_cached}")
         
         # Check LLM model cache (Qwen/MLX Qwen)
         llm_cached = False

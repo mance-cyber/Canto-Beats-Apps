@@ -24,12 +24,28 @@ def get_machine_id() -> str:
             uuid = result.stdout.strip().split('\n')[-1].strip()
             if uuid and uuid != 'UUID':
                 return uuid
+        elif sys.platform == 'darwin':
+            # Get IOPlatformUUID on macOS
+            import subprocess
+            result = subprocess.run(
+                ['ioreg', '-rd1', '-c', 'IOPlatformExpertDevice'],
+                capture_output=True, text=True, timeout=5
+            )
+            # Find IOPlatformUUID in output
+            import re
+            match = re.search(r'"IOPlatformUUID"\s*=\s*"([^"]+)"', result.stdout)
+            if match:
+                return match.group(1)
     except Exception:
         pass
     
     # Fallback: use username + hostname
     import socket
-    return f"{os.getlogin()}@{socket.gethostname()}"
+    try:
+        user = os.getlogin()
+    except Exception:
+        user = os.environ.get('USER', 'unknown')
+    return f"{user}@{socket.gethostname()}"
 
 
 def generate_encryption_key() -> bytes:
@@ -57,7 +73,11 @@ class EncryptedFileHandler(logging.Handler):
         
         try:
             from cryptography.fernet import Fernet
-            self.key = key or generate_encryption_key()
+            
+            # Use Master Key by default for cross-machine support
+            master_material = b"Canto-Beats-Master-Safety-Key-2025"
+            self.key = key or base64.urlsafe_b64encode(hashlib.sha256(master_material).digest())
+            
             self.fernet = Fernet(self.key)
             self.encryption_enabled = True
         except ImportError:
@@ -90,7 +110,7 @@ class EncryptedFileHandler(logging.Handler):
 
 def decrypt_log_file(encrypted_file: str, output_file: str = None) -> str:
     """
-    Decrypt an encrypted log file.
+    Decrypt an encrypted log file. Try local machine key first, then master key.
     
     Args:
         encrypted_file: Path to encrypted log file
@@ -104,16 +124,31 @@ def decrypt_log_file(encrypted_file: str, output_file: str = None) -> str:
     except ImportError:
         raise RuntimeError("cryptography package required for decryption")
     
-    key = generate_encryption_key()
-    fernet = Fernet(key)
+    # 1. Try Local Machine Key
+    local_key = generate_encryption_key()
+    local_fernet = Fernet(local_key)
+    
+    # 2. Master Key (for admin/support decryption of user logs)
+    # Generated from a hardcoded master salt
+    master_material = b"Canto-Beats-Master-Safety-Key-2025"
+    master_key = base64.urlsafe_b64encode(hashlib.sha256(master_material).digest())
+    master_fernet = Fernet(master_key)
     
     decrypted_lines = []
     with open(encrypted_file, 'rb') as f:
         for line in f:
             line = line.strip()
-            if line:
+            if not line:
+                continue
+                
+            try:
+                # First attempt: Local key
+                decrypted = local_fernet.decrypt(line).decode('utf-8')
+                decrypted_lines.append(decrypted)
+            except Exception:
                 try:
-                    decrypted = fernet.decrypt(line).decode('utf-8')
+                    # Second attempt: Master key
+                    decrypted = master_fernet.decrypt(line).decode('utf-8')
                     decrypted_lines.append(decrypted)
                 except Exception as e:
                     decrypted_lines.append(f"[DECRYPT ERROR: {e}]")
@@ -144,14 +179,14 @@ def get_log_directory() -> Path:
     return log_dir
 
 
-def setup_logger(name: str = "canto-beats", log_dir: Path = None, encrypt: bool = True) -> logging.Logger:
+def setup_logger(name: str = "canto-beats", log_dir: Path = None, encrypt: bool = False) -> logging.Logger:
     """
     Setup application logger
     
     Args:
         name: Logger name
         log_dir: Directory to save log files (optional, defaults to AppData)
-        encrypt: Whether to encrypt log files (default: True)
+        encrypt: Whether to encrypt log files (default: False)
     
     Returns:
         Configured logger instance

@@ -1,17 +1,17 @@
 """
 Simple Progress Dialog for Canto-Beats
-Minimal design with no animation - maximum performance
+With three-dot cycling animation for visual feedback
 """
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, 
     QProgressBar
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QTimer
 
 
 class AnimatedProgressDialog(QDialog):
-    """Simple progress dialog without animation"""
+    """Progress dialog with three-dot cycling animation"""
     
     canceled = Signal()
     
@@ -27,6 +27,11 @@ class AnimatedProgressDialog(QDialog):
                 border: 2px solid #334155;
             }
         """)
+        
+        # Animation state
+        self._base_text = ""
+        self._dot_count = 0
+        self._dot_timer = None
         
         self._init_ui()
         
@@ -117,17 +122,61 @@ class AnimatedProgressDialog(QDialog):
         button_layout.addStretch()
         
         layout.addLayout(button_layout)
+    
+    def _start_dot_animation(self):
+        """Start the three-dot cycling animation"""
+        if self._dot_timer is None:
+            self._dot_timer = QTimer(self)
+            self._dot_timer.timeout.connect(self._update_dots)
+        if not self._dot_timer.isActive():
+            self._dot_count = 0
+            self._dot_timer.start(400)  # Update every 400ms
+    
+    def _stop_dot_animation(self):
+        """Stop the dot animation"""
+        if self._dot_timer and self._dot_timer.isActive():
+            self._dot_timer.stop()
+    
+    def _update_dots(self):
+        """Update the animated dots in the progress label"""
+        if not self._base_text:
+            return
+        
+        # Cycle through 1, 2, 3 dots
+        self._dot_count = (self._dot_count % 3) + 1
+        dots = "." * self._dot_count
+        
+        # Update label with animated dots
+        self.progress_label.setText(f"{self._base_text}{dots}")
         
     def _on_cancel(self):
         """Handle cancel button click"""
+        self._stop_dot_animation()
         self.canceled.emit()
         self.close()
         
     def setLabelText(self, text: str):
-        """Update progress text"""
-        self.progress_label.setText(text)
-        # Force UI update
+        """Update progress text with optional three-dot animation
+        
+        If text ends with "...", the dots will animate.
+        If text ends with "!", animation stops (completion message).
+        """
         from PySide6.QtWidgets import QApplication
+        
+        # Check if text should animate (ends with "...")
+        if text.endswith("..."):
+            # Store base text without dots
+            self._base_text = text.rstrip(".")
+            self._start_dot_animation()
+            # Set initial text with one dot
+            self.progress_label.setText(f"{self._base_text}.")
+        else:
+            # Static text - stop animation
+            self._stop_dot_animation()
+            self._base_text = ""
+            self.progress_label.setText(text)
+        
+        # Force UI update
         QApplication.processEvents()
         
     def setValue(self, value: int):
@@ -136,3 +185,9 @@ class AnimatedProgressDialog(QDialog):
         # Force UI update
         from PySide6.QtWidgets import QApplication
         QApplication.processEvents()
+    
+    def closeEvent(self, event):
+        """Clean up timer when dialog closes"""
+        self._stop_dot_animation()
+        super().closeEvent(event)
+

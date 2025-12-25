@@ -75,7 +75,61 @@ class MLXWhisperASR:
             cls._mlx_available = False
             return False
         
-        # Try to import mlx_whisper
+        # === Setup MLX paths for PyInstaller packaged app ===
+        if getattr(sys, 'frozen', False):
+            import os
+            
+            # Build list of possible mlx lib paths
+            possible_paths = []
+            
+            # macOS .app bundle structure
+            exe_dir = Path(sys.executable).parent  # Contents/MacOS
+            contents_dir = exe_dir.parent  # Contents/
+            possible_paths.append(contents_dir / 'Frameworks' / 'mlx' / 'lib')
+            possible_paths.append(contents_dir / 'Frameworks' / 'mlx')
+            possible_paths.append(contents_dir / 'Resources' / 'mlx' / 'lib')
+            possible_paths.append(contents_dir / 'Resources' / 'mlx')
+            
+            # PyInstaller onefile _MEIPASS structure
+            if hasattr(sys, '_MEIPASS'):
+                base_path = Path(sys._MEIPASS)
+                possible_paths.append(base_path / 'mlx' / 'lib')
+                possible_paths.append(base_path / 'mlx')
+                possible_paths.append(base_path)
+            
+            for mlx_lib_path in possible_paths:
+                metallib_path = mlx_lib_path / 'mlx.metallib'
+                if metallib_path.exists():
+                    # Set environment variables for MLX
+                    os.environ['DYLD_LIBRARY_PATH'] = str(mlx_lib_path) + ':' + os.environ.get('DYLD_LIBRARY_PATH', '')
+                    os.environ['MLX_METAL_PATH'] = str(metallib_path)
+                    logger.info(f"🍎 [Packaged App] Set MLX_METAL_PATH to: {metallib_path}")
+                    break
+            else:
+                logger.warning(f"MLX metallib not found in packaged app. Searched: {[str(p) for p in possible_paths]}")
+        
+        # Try to import mlx.core and test Metal functionality
+        try:
+            import mlx.core as mx
+            
+            # Actually test Metal is working
+            if mx.metal.is_available():
+                # Quick test to ensure Metal works
+                test_arr = mx.array([1.0, 2.0, 3.0])
+                result = mx.sum(test_arr)
+                mx.eval(result)  # Force evaluation on Metal
+                logger.info("✅ MLX Metal test passed")
+            else:
+                logger.warning("MLX Metal not available")
+                cls._mlx_available = False
+                return False
+                
+        except Exception as e:
+            logger.warning(f"MLX Whisper not available (MLX core failed): {e}")
+            cls._mlx_available = False
+            return False
+        
+        # Now try to import mlx_whisper
         try:
             import mlx_whisper
             logger.info("✅ MLX Whisper is available (Apple Silicon optimized)")
@@ -234,9 +288,24 @@ class MLXWhisperASR:
             "揀、搵、嗌、靚、掂、叻、畀、嚿、啖、撐、揸、嗮、噃、咧、嘥、揈、仲、系、嚫、唞"
         )
         
+        # Domain-specific vocabulary for specialized content
+        DOMAIN_VOCAB = {
+            "music": "歌詞、旋律、編曲、和弦、音階、作曲、填詞、主歌、副歌、間奏、前奏、尾奏、節拍、拍子、調、升Key、降Key、唱片、專輯、單曲、MV、音樂會、演唱會",
+            "business": "營銷、客戶、銷售、利潤、成本、投資、股份、合作、談判、簽約、合同、項目、業務、市場、品牌、推廣、策略、競爭、優勢、增長",
+            "daily": "飲茶、飲食、行街、睇戲、打機、返工、放假、拍拖、食飯、去街、買餸、煮飯、做家務、睇書、聽歌、運動、休息、放鬆、娛樂、消遣",
+            "tech": "程式、編程、軟件、硬件、系統、網絡、伺服器、數據、算法、網站、應用、App、平台、開發、測試、部署、維護、優化、更新、升級"
+        }
+        
         if initial_prompt is None and language in ["yue", "zh"]:
-            # Build prompt: base instruction + default vocab + user custom vocab
+            # Build prompt: base instruction + default vocab + domain vocab + user custom vocab
             base_prompt = f"以下係廣東話對白，請用粵語口語字幕：{DEFAULT_CANTONESE_VOCAB}"
+            
+            # Check for domain-specific vocabulary from kwargs
+            domain = kwargs.pop("domain", None)
+            if domain and domain in DOMAIN_VOCAB:
+                domain_vocab = DOMAIN_VOCAB[domain]
+                base_prompt = f"{base_prompt}。{domain}相關詞彙：{domain_vocab}"
+                logger.info(f"📚 Using domain vocab: {domain}")
             
             # Check for custom prompt from kwargs (passed from config)
             custom_prompt = kwargs.pop("custom_prompt", "")
@@ -246,10 +315,19 @@ class MLXWhisperASR:
             else:
                 initial_prompt = f"{base_prompt}。"
         
+        
         try:
             import mlx_whisper
             
-            # Transcribe using MLX Whisper
+            # Disable tqdm progress bars in packaged environment to avoid Broken pipe errors
+            # when stdout is closed in GUI apps
+            if getattr(sys, 'frozen', False):
+                import os
+                os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'
+                os.environ['TQDM_DISABLE'] = '1'
+            
+            # Transcribe using MLX Whisper with optimized parameters
+            # NOTE: MLX Whisper doesn't support beam_size/best_of yet
             result = mlx_whisper.transcribe(
                 str(audio_path),
                 path_or_hf_repo=self.model_path,
@@ -257,6 +335,9 @@ class MLXWhisperASR:
                 task=task,
                 initial_prompt=initial_prompt,
                 word_timestamps=word_timestamps,
+                # Optimization parameters (MLX compatible only)
+                temperature=0.0,                    # Deterministic output
+                condition_on_previous_text=True,    # Use context from previous segments
                 **kwargs
             )
             
@@ -281,10 +362,21 @@ class MLXWhisperASR:
             raise
     
     def _extract_segments(self, segments: List[Dict], language: str) -> List[MLXTranscriptionSegment]:
-        """Extract segments from MLX Whisper output."""
+        """
+        Extract segments from MLX Whisper output with confidence filtering.
+        Filters out low-confidence segments (background music, noise).
+        """
         segment_list = []
+        filtered_count = 0
         
         for i, seg in enumerate(segments):
+            # Filter out segments with high no_speech_prob (likely background noise/music)
+            no_speech_prob = seg.get('no_speech_prob', 0.0)
+            if no_speech_prob > 0.6:  # 60% threshold
+                filtered_count += 1
+                logger.debug(f"Filtered segment {i}: no_speech_prob={no_speech_prob:.2f}")
+                continue
+            
             words = []
             if 'words' in seg and seg['words']:
                 words = [
@@ -298,15 +390,18 @@ class MLXWhisperASR:
                 ]
             
             segment = MLXTranscriptionSegment(
-                id=i,
+                id=len(segment_list),  # Use filtered index
                 start=seg.get('start', 0),
                 end=seg.get('end', 0),
                 text=seg.get('text', ''),
-                confidence=seg.get('avg_logprob', 1.0) if 'avg_logprob' in seg else 1.0,
+                confidence=1.0 - no_speech_prob,  # Convert to confidence score
                 language=language,
                 words=words
             )
             segment_list.append(segment)
+        
+        if filtered_count > 0:
+            logger.info(f"🔍 Filtered {filtered_count} low-confidence segments")
         
         return segment_list
     

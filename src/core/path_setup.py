@@ -48,6 +48,12 @@ def _get_app_directories():
         # 1. Directory of the executable
         exe_dir = Path(sys.executable).parent
         dirs.append(exe_dir)
+        
+        # 1b. macOS app bundle - check for bundled binaries in public/bin
+        if sys.platform == 'darwin':
+            app_contents = exe_dir.parent  # Contents/
+            dirs.append(app_contents / 'Resources' / 'public' / 'bin')
+            dirs.append(app_contents / 'Frameworks' / 'public' / 'bin')
     
     # 2. Installed location: C:\Program Files (x86)\Canto-beats
     #    When running from: app\src\core\path_setup.py
@@ -61,6 +67,9 @@ def _get_app_directories():
     #    Go up 3 levels: core -> src -> canto-beats
     project_root = current_file.parent.parent.parent
     dirs.append(project_root)
+    
+    # 3b. Bundled binaries in public/bin
+    dirs.append(project_root / 'public' / 'bin')
     
     # 4. Current working directory
     dirs.append(Path.cwd())
@@ -197,8 +206,24 @@ def get_resource_path(relative_path: str) -> str:
     
     # For frozen/packaged applications (PyInstaller)
     if getattr(sys, 'frozen', False):
-        # In PyInstaller, resources are in _internal/src
-        exe_dir = Path(sys.executable).parent
+        # ===== macOS .app bundle structure =====
+        # Executable: Canto-beats.app/Contents/MacOS/Canto-beats
+        # Resources:  Canto-beats.app/Contents/Resources/src/
+        exe_dir = Path(sys.executable).parent  # Contents/MacOS
+        contents_dir = exe_dir.parent  # Contents/
+        
+        # Primary: macOS app bundle structure
+        possible_bases.append(contents_dir / "Resources" / "src")
+        possible_bases.append(contents_dir / "Resources")
+        possible_bases.append(contents_dir / "Frameworks" / "src")
+        
+        # Secondary: PyInstaller onefile (_MEIPASS)
+        if hasattr(sys, '_MEIPASS'):
+            meipass = Path(sys._MEIPASS)
+            possible_bases.append(meipass / "src")
+            possible_bases.append(meipass)
+        
+        # Fallback: Windows/Linux structure
         possible_bases.append(exe_dir / "_internal" / "src")
         possible_bases.append(exe_dir / "src")
         possible_bases.append(exe_dir)

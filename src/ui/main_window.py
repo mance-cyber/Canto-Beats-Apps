@@ -299,6 +299,10 @@ class MainWindow(QMainWindow):
         export_txt.triggered.connect(lambda: self._export_subtitles('txt'))
         export_menu.addAction(export_txt)
         
+        export_fcpxml = QAction("導出為 FCPXML (Final Cut Pro)...", self)
+        export_fcpxml.triggered.connect(lambda: self._export_subtitles('fcpxml'))
+        export_menu.addAction(export_fcpxml)
+        
         menu.addSeparator()
         
         license_action = QAction("授權管理...", self)
@@ -1135,24 +1139,29 @@ class MainWindow(QMainWindow):
             )
             return
         
-        # Check if Whisper model is cached (Qwen is only needed for written Chinese)
-        self.logger.info("[DEBUG] Checking Whisper model cache...")
-        is_first_time = not self.config.is_model_cached("whisper")
-        self.logger.info(f"[DEBUG] is_first_time (Whisper not cached): {is_first_time}")
+        # ========================================
+        # NEW LOGIC: Force dialog on FIRST transcription
+        # Then check model only AFTER user confirms
+        # ========================================
         
-        if is_first_time:
+        # Step 1: Check if this is user's first transcription EVER
+        is_first_transcription = not self.config.get("first_transcription_done", False)
+        self.logger.info(f"[DEBUG] First transcription: {is_first_transcription}")
+        
+        if is_first_transcription:
             # ========================================
-            # STEP 1: Show confirmation dialog FIRST
+            # STEP 1.1: FORCE show welcome dialog (no model check yet)
             # ========================================
-            self.logger.info("[DEBUG] Showing first-time confirmation dialog...")
+            self.logger.info("[DEBUG] Showing FORCED first-time welcome dialog...")
             from PySide6.QtWidgets import QMessageBox
             msg = QMessageBox(self)
-            msg.setWindowTitle("首次設定")
+            msg.setWindowTitle("歡迎使用 Canto-Beats")
             msg.setIcon(QMessageBox.Information)
-            msg.setText("首次設定 - 需要下載 AI 工具")
+            msg.setText("首次使用 - AI 工具設定")
             msg.setInformativeText(
-                "首次轉寫需要下載 AI 工具 (約 3-5 GB)。\n"
-                "下載時間視網絡速度而定 (約 5-15 分鐘)。\n\n"
+                "首次轉寫需要 AI 工具 (約 3-5 GB)。\n\n"
+                "• 如果已有安裝：會自動檢測並使用\n"
+                "• 如果未安裝：將開始下載 (約 5-15 分鐘)\n\n"
                 "下載完成後，可離線使用！\n\n"
                 "是否繼續？"
             )
@@ -1183,37 +1192,57 @@ class MainWindow(QMainWindow):
             """)
             
             if msg.exec() != QMessageBox.Yes:
+                self.logger.info("[DEBUG] User cancelled first-time setup")
                 return
             
             # ========================================
-            # STEP 2: Download AI tools in MAIN THREAD
-            # with visible progress dialog
+            # STEP 1.2: NOW check if model is cached (lazy check)
             # ========================================
-            self.logger.info("[DEBUG] Starting AI tools download...")
-            from ui.download_dialog import ModelDownloadDialog, MLXWhisperDownloadWorker
+            self.logger.info("[DEBUG] User confirmed, checking Whisper model cache...")
+            model_cached = self.config.is_model_cached("whisper")
+            self.logger.info(f"[DEBUG] Model cached: {model_cached}")
             
-            # Create download dialog for MLX Whisper
-            model_path = "mlx-community/whisper-large-v3-mlx"
-            download_dialog = ModelDownloadDialog(model_path, parent=self)
-            download_dialog.setWindowTitle("AI 工具下載")
+            if not model_cached:
+                # ========================================
+                # STEP 1.3: Download AI tools if not cached
+                # ========================================
+                self.logger.info("[DEBUG] Model not cached, starting download...")
+                from ui.download_dialog import ModelDownloadDialog, MLXWhisperDownloadWorker
+                
+                # Create download dialog for MLX Whisper
+                model_path = "mlx-community/whisper-large-v3-mlx"
+                download_dialog = ModelDownloadDialog(model_path, parent=self)
+                download_dialog.setWindowTitle("AI 工具下載")
+                
+                # Use MLX Whisper worker
+                download_dialog.worker = MLXWhisperDownloadWorker("large-v3")
+                download_dialog.worker.progress.connect(download_dialog._on_progress)
+                download_dialog.worker.finished.connect(download_dialog._on_finished)
+                download_dialog.worker.start()
+                
+                # Show dialog and wait for download to complete
+                result = download_dialog.exec()
+                
+                if not download_dialog.was_successful():
+                    self.logger.warning("AI tools download failed or cancelled")
+                    self._show_frameless_message(
+                        "下載失敗",
+                        "AI 工具下載失敗或已取消。\n請稍後重試。",
+                        "warning"
+                    )
+                    return
+                
+                self.logger.info("[DEBUG] Download completed successfully")
+            else:
+                self.logger.info("[DEBUG] Model already cached, skipping download")
             
-            # Use MLX Whisper worker
-            download_dialog.worker = MLXWhisperDownloadWorker("large-v3")
-            download_dialog.worker.progress.connect(download_dialog._on_progress)
-            download_dialog.worker.finished.connect(download_dialog._on_finished)
-            download_dialog.worker.start()
-            
-            # Show dialog and wait for download to complete
-            result = download_dialog.exec()
-            
-            if not download_dialog.was_successful():
-                self.logger.warning("AI tools download failed or cancelled")
-                self._show_frameless_message(
-                    "下載失敗",
-                    "AI 工具下載失敗或已取消。\n請稍後重試。",
-                    "warning"
-                )
-                return
+            # Mark first transcription as done (save to config)
+            self.config.set("first_transcription_done", True)
+            self.logger.info("[DEBUG] Marked first_transcription_done = True")
+        
+        # ========================================
+        # STEP 2: Start actual transcription worker
+        # ========================================
             
             self.logger.info("[DEBUG] AI tools download completed successfully")
         
@@ -1283,9 +1312,15 @@ class MainWindow(QMainWindow):
         
     def _on_transcription_progress(self, msg: str, value: int):
         """Update progress"""
-        if self.progress_dialog:
-            self.progress_dialog.setLabelText(msg)
-            self.progress_dialog.setValue(value)
+        # Capture reference to avoid race conditions if set to None elsewhere
+        dlg = self.progress_dialog
+        if dlg:
+            try:
+                dlg.setLabelText(msg)
+                dlg.setValue(value)
+            except RuntimeError:
+                # Dialog already deleted, ignore
+                pass
         self.status_bar.showMessage(msg)
         
     def _on_transcription_finished(self, result: dict):
@@ -1586,15 +1621,17 @@ class MainWindow(QMainWindow):
             )
             return
 
+
         
         # File extensions
         extensions = {
             'srt': ('SRT 字幕檔案 (*.srt)', '.srt'),
             'ass': ('ASS 字幕檔案 (*.ass)', '.ass'),
-            'txt': ('純文本檔案 (*.txt)', '.txt')
+            'txt': ('純文本檔案 (*.txt)', '.txt'),
+            'fcpxml': ('Final Cut Pro XML (*.fcpxml)', '.fcpxml')
         }
         
-        ext_filter, ext =extensions[format_type]
+        ext_filter, ext = extensions[format_type]
         
         # Default filename
         default_name = ""
@@ -1620,6 +1657,8 @@ class MainWindow(QMainWindow):
             success = self.exporter.export_ass(self.current_segments, file_path)
         elif format_type == 'txt':
             success = self.exporter.export_txt(self.current_segments, file_path)
+        elif format_type == 'fcpxml':
+            success = self.exporter.export_fcpxml(self.current_segments, file_path)
         
         if success:
             self.status_bar.showMessage(f"已導出至: {Path(file_path).name}", 5000)
@@ -2282,6 +2321,9 @@ OpenCC 轉換: 已啟用
         
         txt_action = menu.addAction("純文字 (.txt)")
         txt_action.triggered.connect(lambda: self._export_subtitles('txt'))
+        
+        fcpxml_action = menu.addAction("FCPXML (Final Cut Pro)")
+        fcpxml_action.triggered.connect(lambda: self._export_subtitles('fcpxml'))
         
         # Show menu at button position
         menu.exec(self.export_btn.mapToGlobal(self.export_btn.rect().bottomLeft()))

@@ -502,6 +502,9 @@ class SubtitleTrack(QWidget):
             pos = event.pos()
             time = pos.x() / self.pixels_per_second
             
+            # Track old selection index for change detection
+            old_selected = self.selected_segment_index
+            
             # Determine action based on current cursor state (set during hover)
             cursor = self.cursor().shape()
             
@@ -535,6 +538,9 @@ class SubtitleTrack(QWidget):
                 self.current_time = time
                 
                 self.selected_segment_index = self.hover_segment_index
+            
+            # Emit selection_changed if selection actually changed
+            if old_selected != self.selected_segment_index:
                 self.selection_changed.emit(self.selected_segment_index)
                 
             self.update()

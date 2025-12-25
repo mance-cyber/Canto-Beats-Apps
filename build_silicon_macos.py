@@ -86,6 +86,9 @@ def build_app():
     project_dir = Path(__file__).parent
     main_script = str(project_dir / "main.py")
     
+    # 获取 venv 的 site-packages 路径
+    venv_site_packages = Path(sys.executable).parent.parent / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+    
     # 基础 PyInstaller 命令
     cmd = [
         sys.executable, "-m", "PyInstaller",
@@ -147,6 +150,13 @@ def build_app():
         "--hidden-import=AVFoundation",
         "--hidden-import=Quartz",
         
+        # === MLX Metal 库 ===
+        # 明确包含 MLX 的 metallib 文件（collect-all 可能会遗漏）
+        f"--add-data={venv_site_packages}/mlx/lib/mlx.metallib:mlx/lib",
+        
+        # === Runtime Hooks ===
+        "--runtime-hook=rthooks/rthook_mlx.py",  # MLX library path setup
+        
         # === macOS 特定 ===
         "--osx-bundle-identifier=com.cantobeats.app",
         "--target-arch=arm64",  # 强制 ARM64
@@ -162,6 +172,7 @@ def build_app():
         "--exclude-module=IPython",
     ]
     
+    # 不添加 FFmpeg 二進位（使用 PyAV 內建的 FFmpeg，避免依賴衝突）
     # 不添加 libmpv (macOS 使用 AVPlayer)
     # libmpv_path = find_libmpv()
     # if libmpv_path:
@@ -185,6 +196,111 @@ def build_app():
         print("\n移除隔离属性...")
         subprocess.run(['xattr', '-cr', 'dist/Canto-beats.app'], check=False)
         
+        # === Fix MLX metallib path ===
+        # MLX C++ core at Frameworks/mlx/core.cpython-311-darwin.so has rpath @loader_path/..
+        # This means it loads libmlx.dylib from Frameworks/
+        # MLX then searches for mlx.metallib NEXT TO libmlx.dylib (in same directory)
+        # So we need to create Contents/Frameworks/mlx.metallib
+        print("\n修復 MLX metallib 路徑...")
+        frameworks_dir = Path('dist/Canto-beats.app/Contents/Frameworks')
+        metallib_src = Path('dist/Canto-beats.app/Contents/Resources/mlx/lib/mlx.metallib')
+        
+        if metallib_src.exists():
+            # Place metallib directly in Frameworks/ (same level as libmlx.dylib)
+            metallib_dst = frameworks_dir / 'mlx.metallib'
+            
+            if metallib_dst.exists() or metallib_dst.is_symlink():
+                metallib_dst.unlink()
+            
+            # Create symlink - relative path from Frameworks/ to Resources/mlx/lib/
+            import os
+            relative_path = os.path.relpath(metallib_src, frameworks_dir)
+            metallib_dst.symlink_to(relative_path)
+            print(f"  ✅ Created: {metallib_dst} -> {relative_path}")
+            
+            # Also put one in Frameworks/lib/ as backup
+            frameworks_lib = frameworks_dir / 'lib'
+            frameworks_lib.mkdir(parents=True, exist_ok=True)
+            metallib_dst2 = frameworks_lib / 'mlx.metallib'
+            if metallib_dst2.exists() or metallib_dst2.is_symlink():
+                metallib_dst2.unlink()
+            relative_path2 = os.path.relpath(metallib_src, frameworks_lib)
+            metallib_dst2.symlink_to(relative_path2)
+            print(f"  ✅ Created: {metallib_dst2} -> {relative_path2}")
+        else:
+            print(f"  ⚠️ metallib not found at: {metallib_src}")
+        
+        # === 公證前清理：移除 Resources 入面會導致公證失敗嘅內容 ===
+        # 成功公證嘅 DMG 冇 Resources/ 入面嘅二進位，所以我哋要移除佢哋
+        print("\n清理 Resources 目錄 (公證必需)...")
+        resources_dir = Path('dist/Canto-beats.app/Contents/Resources')
+        removed_count = 0
+        
+        if resources_dir.exists():
+            import shutil
+            
+            # 1. 移除整個 PySide6 目錄（包含重複嘅 Qt Frameworks）
+            pyside6_dir = resources_dir / 'PySide6'
+            if pyside6_dir.exists():
+                print(f"  ❌ 移除: PySide6/ (重複嘅 Qt Frameworks)")
+                shutil.rmtree(pyside6_dir)
+                removed_count += 1
+            
+            # 2. 移除所有 symlinks（包括壞嘅同有效嘅）
+            # 原因：Resources/ 唔應該有任何 symlinks，有嘅話會導致 spctl 失敗
+            for item in resources_dir.iterdir():
+                if item.is_symlink():
+                    print(f"  ❌ 移除: {item.name} (symlink)")
+                    item.unlink()
+                    removed_count += 1
+        
+        # 3. 搵出並移除所有 broken symlinks（遞歸搜尋）
+        print("\n清理所有壞 symlinks (遞歸)...")
+        broken_symlinks = []
+        for root, dirs, files in os.walk('dist/Canto-beats.app'):
+            for name in files + dirs:
+                path = Path(root) / name
+                if path.is_symlink() and not path.exists():
+                    broken_symlinks.append(path)
+        
+        for symlink in broken_symlinks:
+            print(f"  ❌ 移除壞 symlink: {symlink.relative_to('dist/Canto-beats.app')}")
+            symlink.unlink()
+            removed_count += 1
+        
+        print(f"  ✅ 已清理 {removed_count} 個項目")
+        
+        # 4. 驗證 spctl（確保 Gatekeeper 接受）
+        print("\n驗證 spctl (Gatekeeper 檢查)...")
+        try:
+            result = subprocess.run(
+                ['spctl', '-a', '-v', 'dist/Canto-beats.app'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode == 0:
+                print(f"  ✅ spctl 驗證成功: {result.stderr.strip()}")
+            else:
+                # spctl 失敗 - 再次嘗試清理並重試
+                print(f"  ⚠️ spctl 初次驗證失敗，執行深度清理...")
+                
+                # 移除所有殘留嘅 broken symlinks
+                subprocess.run(['find', 'dist/Canto-beats.app', '-type', 'l', '!', '-exec', 'test', '-e', '{}', ';', '-delete'], check=False)
+                
+                # 重新驗證
+                result2 = subprocess.run(['spctl', '-a', '-v', 'dist/Canto-beats.app'], capture_output=True, text=True, timeout=30)
+                if result2.returncode == 0:
+                    print(f"  ✅ spctl 重試成功: {result2.stderr.strip()}")
+                else:
+                    print(f"  ⚠️ spctl 仍然失敗: {result2.stderr.strip()}")
+                    print(f"     原因: {result2.stderr}")
+                    print(f"     提示: App 可能需要重新簽名")
+        except subprocess.TimeoutExpired:
+            print("  ⚠️ spctl 驗證超時")
+        except Exception as e:
+            print(f"  ⚠️ spctl 驗證出錯: {e}")
+        
         return 0
         
     except subprocess.CalledProcessError as e:
@@ -195,68 +311,113 @@ def build_app():
         return 1
 
 
-def create_dmg():
+def create_dmg(auto_yes=False):
     """创建 DMG 安装包"""
-    print("\n是否创建 DMG 安装包? (y/N): ", end='')
-    response = input()
-    
-    if response.lower() != 'y':
-        return
-    
+    if not auto_yes:
+        print("\n是否创建 DMG 安装包? (y/N): ", end='')
+        response = input()
+
+        if response.lower() != 'y':
+            return None
+
     print("\n创建 DMG...")
-    
+
     try:
         # 创建临时目录
         dmg_dir = Path("dist/dmg")
         dmg_dir.mkdir(exist_ok=True)
-        
+
         # 复制 .app
         subprocess.run(['cp', '-r', 'dist/Canto-beats.app', 'dist/dmg/'], check=True)
-        
+
+        # 创建 Applications 符号链接（方便用户拖拽安装）
+        subprocess.run(['ln', '-s', '/Applications', 'dist/dmg/Applications'], check=False)
+
         # 创建 DMG
+        dmg_path = 'dist/Canto-beats-Silicon.dmg'
         subprocess.run([
             'hdiutil', 'create',
             '-volname', 'Canto-beats',
             '-srcfolder', 'dist/dmg',
             '-ov', '-format', 'UDZO',
-            'dist/Canto-beats-Silicon.dmg'
+            dmg_path
         ], check=True)
-        
+
         # 清理
         subprocess.run(['rm', '-rf', 'dist/dmg'], check=True)
-        
-        print("✅ DMG 创建成功: dist/Canto-beats-Silicon.dmg")
-        
+
+        print(f"✅ DMG 创建成功: {dmg_path}")
+
+        # 获取文件大小
+        size_mb = Path(dmg_path).stat().st_size / (1024 * 1024)
+        print(f"   大小: {size_mb:.1f} MB")
+
+        return dmg_path
+
     except subprocess.CalledProcessError as e:
         print(f"❌ DMG 创建失败: {e}")
+        return None
 
 
 def main():
     """主函数"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Canto-beats Silicon macOS 打包工具")
+    parser.add_argument("--auto-dmg", action="store_true", help="自動創建 DMG（不詢問）")
+    parser.add_argument("--dmg-only", action="store_true", help="僅創建 DMG（跳過構建）")
+    args = parser.parse_args()
+
     print("Canto-beats Silicon macOS 打包工具")
     print("=" * 60)
-    
+
+    # 如果只創建 DMG
+    if args.dmg_only:
+        if not Path("dist/Canto-beats.app").exists():
+            print("❌ 錯誤: dist/Canto-beats.app 不存在")
+            print("   請先運行構建: python build_silicon_macos.py")
+            return 1
+
+        dmg_path = create_dmg(auto_yes=True)
+        if dmg_path:
+            print("\n" + "=" * 60)
+            print("🎉 DMG 創建完成!")
+            print("=" * 60)
+            print(f"\n分發文件: {dmg_path}")
+            print("\n後續步驟:")
+            print("  1. 測試 DMG: open dist/Canto-beats-Silicon.dmg")
+            print("  2. 簽名和公證: python notarize_macos.py")
+        return 0
+
     # 检查架构
     check_architecture()
-    
+
     # 检查依赖
     check_dependencies()
-    
+
     # 构建
     result = build_app()
-    
+
     if result == 0:
         # 创建 DMG
-        create_dmg()
-        
+        dmg_path = create_dmg(auto_yes=args.auto_dmg)
+
         print("\n" + "=" * 60)
         print("🎉 打包完成!")
         print("=" * 60)
-        print("\n测试命令:")
+        print("\n測試命令:")
         print("  open dist/Canto-beats.app")
-        print("\n分发文件:")
-        print("  dist/Canto-beats-Silicon.dmg (如已创建)")
-    
+
+        if dmg_path:
+            print("\n分發文件:")
+            print(f"  {dmg_path}")
+            print("\n後續步驟:")
+            print("  1. 測試 DMG: open dist/Canto-beats-Silicon.dmg")
+            print("  2. 簽名和公證: python notarize_macos.py")
+        else:
+            print("\n如需創建 DMG:")
+            print("  python build_silicon_macos.py --dmg-only")
+
     return result
 
 

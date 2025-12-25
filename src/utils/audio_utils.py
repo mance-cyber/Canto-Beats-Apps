@@ -14,55 +14,6 @@ from utils.logger import setup_logger
 
 logger = setup_logger()
 
-# Setup FFmpeg path for packaged application
-# FFmpeg is bundled with the application in the install directory
-def _setup_ffmpeg_path():
-    """Add FFmpeg to PATH if found in install directory (cross-platform)."""
-    # Determine FFmpeg executable name based on platform
-    ffmpeg_name = "ffmpeg.exe" if sys.platform == 'win32' else "ffmpeg"
-    
-    possible_dirs = []
-    
-    # Platform-specific paths
-    if sys.platform == 'darwin':
-        # macOS: Check Homebrew locations first
-        possible_dirs.append(Path('/opt/homebrew/bin'))  # Apple Silicon
-        possible_dirs.append(Path('/usr/local/bin'))      # Intel Mac
-    
-    # 1. Installed location: C:\Program Files\Canto-beats
-    install_dir = Path(__file__).parent.parent.parent.parent
-    possible_dirs.append(install_dir)
-    
-    # 2. Development: canto-beats root
-    project_root = Path(__file__).parent.parent.parent
-    possible_dirs.append(project_root)
-    
-    # 3. CWD
-    possible_dirs.append(Path.cwd())
-    
-    # 4. Executable directory (for frozen apps)
-    if getattr(sys, 'frozen', False):
-        possible_dirs.append(Path(sys.executable).parent)
-    
-    for dir_path in possible_dirs:
-        ffmpeg_path = dir_path / ffmpeg_name
-        if ffmpeg_path.exists():
-            dir_str = str(dir_path)
-            # On Windows, PATH comparison is case-insensitive
-            if sys.platform == 'win32':
-                if dir_str.lower() not in os.environ["PATH"].lower():
-                    os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
-                    logger.info(f"Added FFmpeg directory to PATH: {dir_str}")
-            else:
-                if dir_str not in os.environ["PATH"]:
-                    os.environ["PATH"] = dir_str + os.pathsep + os.environ["PATH"]
-                    logger.info(f"Added FFmpeg directory to PATH: {dir_str}")
-            return True
-    return False
-
-_setup_ffmpeg_path()
-
-
 
 class AudioPreprocessor:
     """Audio preprocessing for AI models (Whisper, VAD)"""
@@ -120,6 +71,21 @@ class AudioPreprocessor:
             raise ValueError(f"Invalid audio file: {file_path}")
 
         logger.info(f"Loading audio: {file_path}")
+        
+        # Check if file is a video format - extract audio first
+        file_path = Path(file_path)
+        video_formats = {'.mp4', '.mkv', '.avi', '.mov', '.webm', '.flv'}
+        
+        if file_path.suffix.lower() in video_formats:
+            logger.info(f"Detected video format {file_path.suffix}, extracting audio with FFmpeg...")
+            try:
+                # Extract audio to temporary WAV file
+                temp_audio = file_path.with_suffix('.temp.wav')
+                AudioPreprocessor.extract_audio_from_video(file_path, temp_audio)
+                file_path = temp_audio
+            except Exception as e:
+                logger.error(f"Failed to extract audio from video: {e}", exc_info=True)
+                raise RuntimeError(f"無法從影片提取音頻: {e}")
 
         # Load audio using torchaudio (with fallback for torchcodec error)
         try:
@@ -139,6 +105,7 @@ class AudioPreprocessor:
                         waveform = waveform.unsqueeze(0)
                 else:
                     raise
+        
         
         # Convert to mono if stereo
         if waveform.shape[0] > 1:
@@ -193,42 +160,57 @@ class AudioPreprocessor:
         logger.info(f"Extracting audio from video: {video_path}")
         
         try:
-            import ffmpeg
-            import subprocess
+            import av  # PyAV provides FFmpeg functionality without external binary
             
-            # Check if ffmpeg is available
-            try:
-                subprocess.run(['ffmpeg', '-version'], capture_output=True, check=True)
-            except FileNotFoundError:
-                error_msg = (
-                    "FFmpeg executable not found in system PATH.\n"
-                    "Please install FFmpeg:\n"
-                    "1. Download from: https://ffmpeg.org/download.html\n"
-                    "2. Add ffmpeg.exe to system PATH\n"
-                    "3. Or place ffmpeg.exe in the project root directory"
-                )
-                logger.error(error_msg)
-                raise FileNotFoundError(error_msg)
+            # Open video file with PyAV
+            container = av.open(str(video_path))
             
-            # Extract audio and convert to 16kHz mono WAV
-            stream = ffmpeg.input(str(video_path))
-            stream = ffmpeg.output(
-                stream,
-                str(output_path),
-                acodec='pcm_s16le',
-                ac=1,  # mono
-                ar=AudioPreprocessor.TARGET_SAMPLE_RATE
-            )
-            ffmpeg.run(stream, overwrite_output=True, quiet=True)
+            # Get audio stream
+            audio_stream = container.streams.audio[0]
+            
+            # Extract and decode audio frames
+            audio_frames = []
+            for frame in container.decode(audio_stream):
+                # Convert frame to numpy array
+                audio_frames.append(frame.to_ndarray())
+            
+            container.close()
+            
+            if not audio_frames:
+                raise RuntimeError("No audio frames found in video")
+            
+            # Concatenate all frames
+            import numpy as np
+            audio_data = np.concatenate(audio_frames, axis=1)
+            
+            # Convert to PyTorch tensor and save as WAV
+            import soundfile as sf
+            
+            # PyAV returns float data, soundfile expects it in range [-1, 1]
+            # Resample to target sample rate if needed
+            if audio_stream.rate != AudioPreprocessor.TARGET_SAMPLE_RATE:
+                import scipy.signal
+                num_samples = int(len(audio_data[0]) * AudioPreprocessor.TARGET_SAMPLE_RATE / audio_stream.rate)
+                audio_data = scipy.signal.resample(audio_data, num_samples, axis=1)
+                sample_rate = AudioPreprocessor.TARGET_SAMPLE_RATE
+            else:
+                sample_rate = audio_stream.rate
+            
+            # Convert to mono if stereo
+            if audio_data.shape[0] > 1:
+                audio_data = np.mean(audio_data, axis=0)
+            else:
+                audio_data = audio_data[0]
+            
+            # Save as WAV
+            sf.write(str(output_path), audio_data, sample_rate, subtype='PCM_16')
             
             logger.info(f"Audio extracted to: {output_path}")
             return output_path
             
-        except ImportError:
-            logger.error("ffmpeg-python not installed. Please install: pip install ffmpeg-python")
-            raise
-        except FileNotFoundError as e:
-            # Re-raise with our custom message
+        except ImportError as e:
+            logger.error(f"Required library not available: {e}")
+            logger.error("Please ensure av (PyAV), soundfile, and scipy are installed")
             raise
         except Exception as e:
             logger.error(f"Failed to extract audio: {e}")

@@ -599,6 +599,24 @@ class TimelineEditor(QWidget):
             btn.setObjectName("toolbarButton")
             btn.setToolTip(tooltip)
             btn.setEnabled(enabled)
+            # Add stylesheet for disabled state
+            btn.setStyleSheet("""
+                QToolButton {
+                    background: transparent;
+                    border: none;
+                    padding: 4px;
+                    border-radius: 4px;
+                }
+                QToolButton:hover:enabled {
+                    background: rgba(100, 116, 139, 0.3);
+                }
+                QToolButton:pressed:enabled {
+                    background: rgba(100, 116, 139, 0.5);
+                }
+                QToolButton:disabled {
+                    opacity: 0.4;
+                }
+            """)
             return btn
         
         # Left group: Edit tools

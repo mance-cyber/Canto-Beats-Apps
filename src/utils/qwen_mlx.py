@@ -192,7 +192,7 @@ class MLXQwenLLM:
             
         except Exception as e:
             logger.error(f"MLX generation failed: {e}")
-            raise
+            return ""  # Return empty string instead of raising to prevent crash
     
     def batch_convert_to_written(
         self,
@@ -385,24 +385,36 @@ def get_qwen_for_hardware():
     is_mac = sys.platform == 'darwin'
     is_apple_silicon = is_mac and platform.machine() == 'arm64'
     
-    # Apple Silicon with MLX
+    logger.info(f"🔍 Hardware check: mac={is_mac}, apple_silicon={is_apple_silicon}")
+    
+    # ============================================
+    # MLX QWEN - WITH STABILITY TEST
+    # ============================================
+    # MLX is re-enabled but with a safety check first.
+    # We run a quick test to ensure MLX works before using it.
+    # ============================================
+    
     if is_apple_silicon:
-        try:
-            import mlx_lm
+        # Try MLX with stability test
+        mlx_stable = _test_mlx_stability()
+        
+        if mlx_stable:
+            logger.info("✅ MLX stability test passed - using MLX Qwen")
             return {
                 "model_id": "mlx-community/Qwen2.5-3B-Instruct-bf16",
                 "backend": "mlx",
                 "device": "mlx",
-                "description": "🍎 MLX Qwen (Apple Silicon 優化，最快速)"
+                "description": "⚡ MLX Qwen (Apple Silicon 極速)"
             }
-        except ImportError:
-            pass
+        else:
+            logger.warning("⚠️ MLX stability test failed - using MPS fallback")
     
-    # Check GPU availability
+    # Check GPU availability (MPS or CUDA)
     try:
         import torch
         
         if torch.backends.mps.is_available():
+            logger.info("Using MPS (Metal) backend")
             return {
                 "model_id": "Qwen/Qwen2.5-3B-Instruct",
                 "backend": "mps",
@@ -427,6 +439,63 @@ def get_qwen_for_hardware():
         "device": "cpu",
         "description": "💻 CPU Qwen (無 GPU，較慢)"
     }
+
+
+def _test_mlx_stability() -> bool:
+    """
+    Test if MLX is stable on this system.
+    
+    Runs a quick test in a subprocess to catch C-level crashes.
+    Returns True if MLX is stable, False otherwise.
+    """
+    import subprocess
+    import sys
+    
+    # Quick inline test script
+    test_script = '''
+import sys
+try:
+    import mlx.core as mx
+    # Simple array test
+    a = mx.array([1, 2, 3])
+    b = mx.array([4, 5, 6])
+    c = a + b
+    # Force evaluation
+    result = c.tolist()
+    if result == [5, 7, 9]:
+        print("OK")
+        sys.exit(0)
+    else:
+        print("WRONG_RESULT")
+        sys.exit(1)
+except Exception as e:
+    print(f"ERROR: {e}")
+    sys.exit(1)
+'''
+    
+    try:
+        # Run test in subprocess with timeout
+        result = subprocess.run(
+            [sys.executable, "-c", test_script],
+            capture_output=True,
+            text=True,
+            timeout=10  # 10 second timeout
+        )
+        
+        if result.returncode == 0 and "OK" in result.stdout:
+            logger.info("MLX stability test: PASSED")
+            return True
+        else:
+            logger.warning(f"MLX stability test: FAILED - {result.stdout} {result.stderr}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        logger.warning("MLX stability test: TIMEOUT")
+        return False
+    except Exception as e:
+        logger.warning(f"MLX stability test: ERROR - {e}")
+        return False
+
 
 
 # Test function

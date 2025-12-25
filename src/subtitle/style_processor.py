@@ -42,34 +42,43 @@ class StyleProcessor:
             logger.info("OpenCC S2HK converter initialized")
         else:
             self.s2t_converter = None
-            logger.warning("OpenCC not available, S2T conversion disabled")
+            logger.warning("⚠️  OpenCC not available - AI translations may output Simplified Chinese!")
+            logger.warning("    Install with: pip install opencc-python-reimplemented")
         
         self._load_resources()
         
     def _load_resources(self):
-        """Load mapping resources"""
+        """Load mapping resources - uses get_resource_path for PyInstaller compatibility"""
+        from core.path_setup import get_resource_path
+        
         try:
-            resource_dir = Path(__file__).parent.parent / 'resources'
+            # Use get_resource_path for PyInstaller compatibility
+            # This correctly resolves paths in both development and packaged app
             
             # Load Cantonese mapping
-            canto_path = resource_dir / 'cantonese_mapping.json'
-            if canto_path.exists():
+            canto_path = get_resource_path('resources/cantonese_mapping.json')
+            if Path(canto_path).exists():
                 with open(canto_path, 'r', encoding='utf-8') as f:
                     self.cantonese_map = json.load(f)
+            else:
+                logger.warning(f"Cantonese mapping not found at: {canto_path}")
             
             # Load Profanity mapping
-            prof_path = resource_dir / 'profanity_mapping.json'
-            if prof_path.exists():
+            prof_path = get_resource_path('resources/profanity_mapping.json')
+            if Path(prof_path).exists():
                 with open(prof_path, 'r', encoding='utf-8') as f:
                     self.profanity_map = json.load(f)
+            else:
+                logger.warning(f"Profanity mapping not found at: {prof_path}")
 
             # Load English mapping
-            eng_path = resource_dir / 'english_mapping.json'
-            if eng_path.exists():
+            eng_path = get_resource_path('resources/english_mapping.json')
+            if Path(eng_path).exists():
                 with open(eng_path, 'r', encoding='utf-8') as f:
                     self.english_map = json.load(f)
             else:
                 self.english_map = {}
+                logger.warning(f"English mapping not found at: {eng_path}")
                     
             logger.info(f"Loaded resources: Canto={len(self.cantonese_map)}, Prof={len(self.profanity_map)}, Eng={len(self.english_map)}")
             
@@ -267,23 +276,42 @@ class StyleProcessor:
                         class MLXQwenDownloadWorker(MLXWhisperDownloadWorker):
                             def run(self):
                                 try:
-                                    from huggingface_hub import snapshot_download
+                                    from huggingface_hub import snapshot_download, list_repo_files
                                     from tqdm import tqdm
                                     
                                     self.progress.emit(5, "正在連接伺服器...")
+                                    
+                                    # Get list of files to download for better progress tracking
+                                    try:
+                                        all_files = list(list_repo_files(model_id))
+                                        total_files = len(all_files)
+                                    except Exception:
+                                        total_files = 10  # Estimated fallback
+                                    
+                                    # Track current file being downloaded
+                                    file_counter = {'current': 0, 'name': ''}
                                     
                                     class ProgressTqdm(tqdm):
                                         def __init__(self_tqdm, *args, **kwargs):
                                             super().__init__(*args, **kwargs)
                                             self_tqdm.worker = self
+                                            # Extract filename from desc if available
+                                            if hasattr(self_tqdm, 'desc') and self_tqdm.desc:
+                                                file_counter['name'] = self_tqdm.desc
+                                            file_counter['current'] += 1
                                         
                                         def update(self_tqdm, n=1):
                                             super().update(n)
                                             if self_tqdm.total and self_tqdm.total > 0:
-                                                percent = int((self_tqdm.n / self_tqdm.total) * 90) + 5
+                                                file_num = file_counter['current']
+                                                # Calculate overall progress based on file count
+                                                base_percent = int((file_num - 1) / total_files * 85) + 5
+                                                file_percent = int((self_tqdm.n / self_tqdm.total) * (85 / total_files))
+                                                percent = min(base_percent + file_percent, 95)
+                                                
                                                 downloaded_mb = self_tqdm.n / (1024 * 1024)
                                                 total_mb = self_tqdm.total / (1024 * 1024)
-                                                msg = f"下載中... {downloaded_mb:.0f}MB / {total_mb:.0f}MB"
+                                                msg = f"文件 {file_num}/{total_files}: {downloaded_mb:.0f}MB / {total_mb:.0f}MB"
                                                 self_tqdm.worker.progress.emit(percent, msg)
                                     
                                     snapshot_download(repo_id=model_id, tqdm_class=ProgressTqdm)
@@ -308,11 +336,40 @@ class StyleProcessor:
                         
                         logger.info("✅ MLX Qwen download completed")
                     
-                    # Now load the model
-                    self.llm_processor = MLXQwenLLM(model_id=model_id)
-                    self.llm_processor.load_model()
-                    self._using_mlx = True
-                    logger.info(f"⚡ {hw_config['description']} loaded")
+                    # Now load the model with robust error handling
+                    try:
+                        self.llm_processor = MLXQwenLLM(model_id=model_id)
+                        self.llm_processor.load_model()
+                        self._using_mlx = True
+                        logger.info(f"⚡ {hw_config['description']} loaded")
+                    except Exception as load_error:
+                        logger.error(f"Failed to load MLX Qwen model: {load_error}", exc_info=True)
+                        
+                        # Show user-friendly error message
+                        from PySide6.QtWidgets import QMessageBox, QApplication
+                        parent = None
+                        app = QApplication.instance()
+                        if app:
+                            for widget in app.topLevelWidgets():
+                                if widget.isVisible():
+                                    parent = widget
+                                    break
+                        
+                        msg = QMessageBox(parent)
+                        msg.setWindowTitle("AI 工具載入失敗")
+                        msg.setIcon(QMessageBox.Warning)
+                        msg.setText("書面語 AI 工具無法載入")
+                        msg.setInformativeText(
+                            f"錯誤：{str(load_error)[:100]}\n\n"
+                            "將使用字典模式進行轉換（速度較快但準確度較低）。\n\n"
+                            "如需完整 AI 功能，請重啟應用或聯繫技術支援。"
+                        )
+                        msg.setStandardButtons(QMessageBox.Ok)
+                        msg.exec()
+                        
+                        # Fall back to dictionary mode
+                        logger.warning("Falling back to dictionary mode due to model load failure")
+                        return result
                 else:
                     # Use Transformers Qwen (MPS/CUDA/CPU)
                     self._using_mlx = False
@@ -340,6 +397,11 @@ class StyleProcessor:
             except Exception as e:
                 logger.warning(f"LLM init failed: {e}")
                 return result
+        
+        # CRITICAL CHECK: If LLM failed to initialize, don't proceed with AI conversion
+        if self.llm_processor is None:
+            logger.warning("LLM processor is None, cannot perform AI conversion - using dictionary fallback")
+            return result
         
         # Process in batches
         total_batches = (len(segments) + batch_size - 1) // batch_size
@@ -453,10 +515,11 @@ class StyleProcessor:
         
         # Report completion
         if progress_callback:
-            progress_callback(total_batches, total_batches, "AI 轉換完成")
+            progress_callback(total_batches, total_batches, "AI 轉換完成！")
         
         # Post-process with dictionary to fix AI missed conversions
         post_fix_map = {
+            # === 基本粵語→書面語轉換 ===
             "蚊": "元",
             "個鐘": "小時",
             "即係": "就是",
@@ -468,7 +531,7 @@ class StyleProcessor:
             "係": "是",
             "佢": "他",
             "嚟": "來",
-            "搵": "找",  # 新增：搵→找
+            "搵": "找",
             "好彩": "幸運",
             "頭先": "剛才",
             "琴日": "昨天",
@@ -480,11 +543,22 @@ class StyleProcessor:
             "邊度": "哪裡",
             "呢啲": "這些",
             "唔係": "不是",
-            # 常見錯誤修正
+            "加埋": "加上",
+            "啲": "一些",
+            
+            # === AI 錯誤轉換修正 ===
+            # AI 可能會產生錯誤嘅諧音字
+            "脫了": "除了",      # 除了被錯誤轉成脫了
+            "便宜時": "平時",    # 平時被錯誤轉成便宜時
+            "逢係": "凡是",      # 凡是被錯誤轉成逢係
+            "逢是": "凡是",      # 凡是被錯誤轉成逢是
+            # 注意: "個個" 係有效書面語 (意思係「每一個」)，唔應該替換
+            # 注意: "啲" 會被上面嘅 "啲": "一些" 處理
+            
+            # === 常見 OCR/ASR 錯誤修正 ===
             "視顧": "覺得",
             "告運作": "就運作",
-            "嘗 ": "係 ",
-            "嘗": "係",
+            "嘗": "是",          # 修正：之前錯誤地寫成 "係"
             "績優": "很多",
         }
         
@@ -537,54 +611,62 @@ class StyleProcessor:
             try:
                 if self.llm_processor is None:
                     # Check if model needs to be downloaded first
-                    from ui.download_dialog import check_and_download_model
-                    from core.hardware_detector import HardwareDetector
-                    
-                    detector = HardwareDetector()
-                    profile = detector.detect()
-                    
-                    # Show download dialog if model not cached
-                    model_ready = check_and_download_model(
-                        profile.llm_a_model,
-                        profile.llm_a_quantization,
-                        parent=None
-                    )
-                    
-                    if not model_ready:
-                        logger.warning("Model download cancelled or failed, using dictionary")
+                    try:
+                        from ui.download_dialog import check_and_download_model
+                        from core.hardware_detector import HardwareDetector
+                        
+                        detector = HardwareDetector()
+                        profile = detector.detect()
+                        
+                        # Show download dialog if model not cached
+                        model_ready = check_and_download_model(
+                            profile.llm_a_model,
+                            profile.llm_a_quantization,
+                            parent=None
+                        )
+                        
+                        if not model_ready:
+                            logger.warning("Model download cancelled or failed, using dictionary")
+                            # Fall through to dictionary conversion
+                        else:
+                            # Load the model
+                            logger.info("Initializing Qwen2.5-3B for AI style conversion...")
+                            from models.qwen_llm import QwenLLM
+                            self.llm_processor = QwenLLM(self.config, profile)
+                            self.llm_processor.load_models()
+                            logger.info("Qwen2.5-3B loaded successfully")
+                    except Exception as load_error:
+                        logger.warning(f"Failed to load model for AI conversion: {load_error}")
                         # Fall through to dictionary conversion
-                    else:
-                        # Load the model
-                        logger.info("Initializing Qwen2.5-3B for AI style conversion...")
-                        from models.qwen_llm import QwenLLM
-                        self.llm_processor = QwenLLM(self.config, profile)
-                        self.llm_processor.load_models()
-                        logger.info("Qwen2.5-3B loaded successfully")
                 
-                # Use specialized prompt for colloquial-to-written conversion
-                from prompts.cantonese_prompts import COLLOQUIAL_TO_WRITTEN_PROMPT
-                prompt = COLLOQUIAL_TO_WRITTEN_PROMPT.format(text=text)
-                
-                # Generate response directly
-                converted = self.llm_processor._generate(prompt, self.llm_processor._model_a, self.llm_processor._tokenizer_a,  max_new_tokens=512, temperature=0.3)
-                
-                # Clean up LLM output - remove common prefixes
-                if converted:
-                    converted = converted.strip()
-                    # Remove common output prefixes
-                    prefixes_to_remove = [
-                        "書面語翻譯結果：", "書面語：", "翻譯結果：", 
-                        "結果：", "翻譯：", "書面語版本："
-                    ]
-                    for prefix in prefixes_to_remove:
-                        if converted.startswith(prefix):
-                            converted = converted[len(prefix):].strip()
+                # CRITICAL: Check llm_processor is ready before using
+                if self.llm_processor is not None:
+                    # Use specialized prompt for colloquial-to-written conversion
+                    from prompts.cantonese_prompts import COLLOQUIAL_TO_WRITTEN_PROMPT
+                    prompt = COLLOQUIAL_TO_WRITTEN_PROMPT.format(text=text)
                     
-                    if converted and converted != text.strip():
-                        logger.info(f"AI conversion: '{text[:30]}...' -> '{converted[:30]}...'")
-                        return converted
-                    else:
-                        logger.warning(f"AI returned same text or empty, using dictionary")
+                    # Generate response directly
+                    converted = self.llm_processor._generate(prompt, self.llm_processor._model_a, self.llm_processor._tokenizer_a,  max_new_tokens=512, temperature=0.3)
+                    
+                    # Clean up LLM output - remove common prefixes
+                    if converted:
+                        converted = converted.strip()
+                        # Remove common output prefixes
+                        prefixes_to_remove = [
+                            "書面語翻譯結果：", "書面語：", "翻譯結果：", 
+                            "結果：", "翻譯：", "書面語版本："
+                        ]
+                        for prefix in prefixes_to_remove:
+                            if converted.startswith(prefix):
+                                converted = converted[len(prefix):].strip()
+                        
+                        if converted and converted != text.strip():
+                            logger.info(f"AI conversion: '{text[:30]}...' -> '{converted[:30]}...'")
+                            return converted
+                        else:
+                            logger.warning(f"AI returned same text or empty, using dictionary")
+                else:
+                    logger.warning("LLM processor not available, using dictionary fallback")
                     
             except Exception as e:
                 logger.warning(f"AI conversion failed, falling back to dictionary: {e}")
@@ -874,8 +956,12 @@ class StyleProcessor:
                     for prefix in ['繁體中文：', '翻譯：', '結果：']:
                         if result.startswith(prefix):
                             result = result[len(prefix):].strip()
-                    
+
                     if result and result != text:
+                        # Ensure Traditional Chinese output (in case LLM outputs Simplified)
+                        if self.s2t_converter:
+                            result = self.s2t_converter.convert(result)
+
                         logger.info(f"[Qwen LLM] '{text}' -> '{result}'")
                         # Cache for future use
                         self.translation_cache[text.lower()] = result
@@ -890,18 +976,24 @@ class StyleProcessor:
                 logger.info("Initializing MarianMT Translation Model...")
                 from models.translation_model import TranslationModel
                 self.translation_model = TranslationModel(self.config)
-            
+
             result = self.translation_model.translate(text)
-            
+
             if result and result.strip() and result != text:
-                logger.info(f"[MarianMT] '{text}' -> '{result}'")
+                # MarianMT outputs Simplified Chinese, convert to Traditional immediately
+                if self.s2t_converter:
+                    result = self.s2t_converter.convert(result)
+                    logger.info(f"[MarianMT+S2T] '{text}' -> '{result}'")
+                else:
+                    logger.warning(f"[MarianMT] OpenCC not available, output may be Simplified: '{text}' -> '{result}'")
+
                 # Cache for future use
                 self.translation_cache[text.lower()] = result
                 return result
             else:
                 logger.warning(f"MarianMT returned empty or same, keeping original")
                 return text
-                
+
         except Exception as e:
             logger.error(f"MarianMT failed: {e}", exc_info=True)
             return text
