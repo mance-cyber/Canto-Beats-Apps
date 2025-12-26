@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('src', 'src'), ('public', 'public'), ('/Users/nicleung/Public/Canto-Beats-Apps/venv_compat/lib/python3.12/site-packages/mlx/lib/mlx.metallib', 'mlx/lib')]
+datas = [('src', 'src'), ('public', 'public'), ('/Users/nicleung/Public/Canto-Beats-Apps/venv/lib/python3.11/site-packages/mlx/lib/mlx.metallib', 'mlx/lib')]
 binaries = []
 hiddenimports = ['PySide6.QtCore', 'PySide6.QtGui', 'PySide6.QtWidgets', 'torch', 'torchaudio', 'faster_whisper', 'transformers', 'cryptography', 'sentencepiece', 'accelerate', 'silero_vad', 'mlx', 'mlx.core', 'mlx.nn', 'mlx.utils', 'mlx._reprlib_fix', 'mlx_whisper', 'mlx_whisper.transcribe', 'mlx_whisper.audio', 'mlx_whisper.decoding', 'mlx_whisper.load_models', 'mlx_lm', 'mlx_lm.generate', 'mlx_lm.utils', 'opencc', 'pysrt', 'soundfile', 'pydub', 'ffmpeg', 'huggingface_hub', 'objc', 'Foundation', 'AppKit', 'AVFoundation', 'Quartz']
 tmp_ret = collect_all('mlx')
