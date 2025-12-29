@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source venv/bin/activate)",
+      "Bash(python:*)",
+      "Bash(ls:*)",
+      "Bash(python3 -m py_compile:*)",
+      "Bash(wc:*)",
+      "Bash(python3:*)",
+      "Bash(codesign:*)",
+      "Bash(grep:*)",
+      "Bash(cat:*)",
+      "Bash(file:*)",
+      "Bash(head:*)",
+      "Bash(mkdir:*)"
+    ]
+  }
+}

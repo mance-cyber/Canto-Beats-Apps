@@ -1,0 +1,90 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ========================================
+# 大型文件 (不上傳到 GitHub)
+# ========================================
+
+# AI 模型
+models/
+*.gguf
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.onnx
+
+# Windows 二進制文件
+libmpv-2.dll
+libmpv.dll.a
+*.dll
+ffmpeg.exe
+ffprobe.exe
+python-embed.zip
+
+# Nuitka / PyInstaller 編譯產物
+*.build/
+*.dist/
+*.onefile-build/
+*.spec
+
+# Node.js
+node_modules/
+public/figma-design/node_modules/
+
+# 緩存和日誌
+cache/
+*.log
+*.txt
+!requirements.txt
+!README.txt
+
+# 許可證數據
+license.dat
+.integrity
+.modified
+
+# 測試輸出
+debug_thumbs/
+test_install/
+Output/
+
+# 其他大型文件
+*.obj
+*.const
