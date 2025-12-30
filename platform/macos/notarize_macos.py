@@ -32,7 +32,7 @@ APP_NAME = "Canto-beats"
 BUNDLE_ID = "com.cantobeats.app"
 APP_PATH = Path("dist/Canto-beats.app")
 DMG_PATH = Path("dist/Canto-beats-macOS-Notarized.dmg")
-ENTITLEMENTS = Path("entitlements.plist")
+ENTITLEMENTS = Path("platform/macos/entitlements.plist")
 
 
 # ============================================================

@@ -1945,6 +1945,10 @@ class MainWindow(QMainWindow):
         if success:
             self.status_bar.showMessage(f"已導出至: {Path(file_path).name}", 5000)
             self.logger.info(f"[OK] Export success: {file_path}")
+
+            # 從用戶修正中學習詞彙
+            self._learn_from_user_corrections()
+
             QMessageBox.information(
                 self,
                 "導出成功",
@@ -2306,9 +2310,9 @@ OpenCC 轉換: 已啟用
         auto_scroll = QCheckBox("啟用")
         auto_scroll.setChecked(True)
         form.addRow("時間軸自動滾動:", auto_scroll)
-        
+
         layout.addLayout(form)
-        
+
         # === Update Section ===
         from PySide6.QtWidgets import QFrame, QHBoxLayout
         
@@ -2564,6 +2568,266 @@ OpenCC 轉換: 已啟用
         dialog.exec()
         # Update badge after closing
         self._update_notification_badge(self.notification_manager.unread_count)
+
+    def _show_vocabulary_dialog(self, parent_dialog=None):
+        """顯示用戶詞彙庫對話框"""
+        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                                       QTableWidget, QTableWidgetItem, QPushButton,
+                                       QHeaderView, QAbstractItemView)
+
+        try:
+            from utils.vocabulary_learner import get_vocabulary_learner
+            vocab_learner = get_vocabulary_learner()
+        except Exception as e:
+            self._show_frameless_message("錯誤", f"無法載入詞彙庫: {e}", "error")
+            return
+
+        dialog = QDialog(parent_dialog or self)
+        dialog.setWindowTitle("用戶詞彙庫")
+        dialog.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        dialog.setMinimumSize(600, 450)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #1e293b;
+                border: 1px solid #475569;
+                border-radius: 12px;
+            }
+        """)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(16)
+
+        # 標題
+        title = QLabel("📚 用戶詞彙庫")
+        title.setStyleSheet("font-size: 18px; font-weight: bold; color: #22d3ee;")
+        layout.addWidget(title)
+
+        # 統計信息
+        stats = vocab_learner.get_statistics()
+        stats_label = QLabel(
+            f"共 {stats['total_words']} 個詞彙 | "
+            f"累計校正 {stats['total_corrections']} 次 | "
+            f"平均信心度 {stats['average_confidence']:.1%}"
+        )
+        stats_label.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        layout.addWidget(stats_label)
+
+        # 詞彙表格
+        table = QTableWidget()
+        table.setColumnCount(4)
+        table.setHorizontalHeaderLabels(["錯誤文字", "正確文字", "使用次數", "信心度"])
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        table.setStyleSheet("""
+            QTableWidget {
+                background-color: #0f172a;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                color: #e2e8f0;
+                gridline-color: #334155;
+            }
+            QTableWidget::item {
+                padding: 8px;
+            }
+            QTableWidget::item:selected {
+                background-color: #1e40af;
+            }
+            QHeaderView::section {
+                background-color: #334155;
+                color: #e2e8f0;
+                padding: 8px;
+                border: none;
+                font-weight: bold;
+            }
+        """)
+
+        # 填充數據
+        vocabulary = vocab_learner.vocabulary
+        table.setRowCount(len(vocabulary))
+        for row, (correct_word, entry) in enumerate(vocabulary.items()):
+            # entry 是 VocabularyEntry 對象
+            wrong_variants = ", ".join(entry.wrong_variants) if entry.wrong_variants else ""
+            table.setItem(row, 0, QTableWidgetItem(wrong_variants))
+            table.setItem(row, 1, QTableWidgetItem(entry.correct_word))
+            table.setItem(row, 2, QTableWidgetItem(str(entry.frequency)))
+            # 信心度基於使用頻率計算
+            confidence = min(1.0, entry.frequency / 5)
+            table.setItem(row, 3, QTableWidgetItem(f"{confidence:.1%}"))
+
+        layout.addWidget(table)
+
+        # 按鈕區
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        # 刪除選中
+        delete_btn = QPushButton("刪除選中")
+        delete_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #7f1d1d;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #991b1b;
+            }
+        """)
+
+        def delete_selected():
+            selected = table.selectedItems()
+            if not selected:
+                return
+            rows = set(item.row() for item in selected)
+            for row in sorted(rows, reverse=True):
+                correct_text = table.item(row, 1).text()  # 正確文字在第二列
+                if correct_text in vocab_learner.vocabulary:
+                    del vocab_learner.vocabulary[correct_text]
+                table.removeRow(row)
+            vocab_learner._save_data()
+            self.logger.info(f"已刪除 {len(rows)} 個詞彙")
+
+        delete_btn.clicked.connect(delete_selected)
+        btn_layout.addWidget(delete_btn)
+
+        # 關閉
+        close_btn = QPushButton("關閉")
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3b82f6;
+                color: white;
+                padding: 8px 20px;
+                border-radius: 6px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2563eb;
+            }
+        """)
+        close_btn.clicked.connect(dialog.accept)
+        btn_layout.addWidget(close_btn)
+
+        layout.addLayout(btn_layout)
+        dialog.exec()
+
+    def _clear_vocabulary(self, stats_label=None):
+        """清空用戶詞彙庫"""
+        from PySide6.QtWidgets import QMessageBox
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("確認清空")
+        msg.setIcon(QMessageBox.Warning)
+        msg.setText("確定要清空所有已學習的詞彙嗎？")
+        msg.setInformativeText("此操作無法撤銷，所有學習記錄將被永久刪除。")
+        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg.setDefaultButton(QMessageBox.No)
+        msg.setStyleSheet("""
+            QMessageBox {
+                background-color: #1e293b;
+                color: #f1f5f9;
+            }
+            QMessageBox QLabel {
+                color: #f1f5f9;
+            }
+            QPushButton {
+                background-color: #475569;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 6px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #64748b;
+            }
+        """)
+
+        if msg.exec() == QMessageBox.Yes:
+            try:
+                from utils.vocabulary_learner import get_vocabulary_learner
+                vocab_learner = get_vocabulary_learner()
+                vocab_learner.clear_all()
+                self.logger.info("已清空用戶詞彙庫")
+
+                # 更新統計標籤
+                if stats_label:
+                    stats_label.setText("已學習 0 個詞彙，累計校正 0 次")
+
+                self._show_frameless_message(
+                    "清空完成",
+                    "用戶詞彙庫已清空",
+                    "info"
+                )
+            except Exception as e:
+                self.logger.error(f"清空詞彙庫失敗: {e}")
+                self._show_frameless_message(
+                    "錯誤",
+                    f"清空失敗: {e}",
+                    "error"
+                )
+
+    def _learn_from_user_corrections(self):
+        """從用戶編輯的字幕中學習詞彙修正"""
+        if not hasattr(self, 'original_segments') or not self.original_segments:
+            self.logger.debug("無原始字幕可比較，跳過詞彙學習")
+            return
+
+        if not self.current_segments:
+            return
+
+        try:
+            from utils.vocabulary_learner import get_vocabulary_learner
+            vocab_learner = get_vocabulary_learner()
+        except ImportError:
+            self.logger.debug("詞彙學習模組不可用")
+            return
+
+        learned_count = 0
+
+        # 比較原始與編輯後的字幕
+        min_len = min(len(self.original_segments), len(self.current_segments))
+
+        for i in range(min_len):
+            original_text = self.original_segments[i].get('text', '').strip()
+            current_text = self.current_segments[i].get('text', '').strip()
+
+            # 如果文字有變化，嘗試學習
+            if original_text and current_text and original_text != current_text:
+                # 找出差異的詞彙
+                corrections = self._find_word_corrections(original_text, current_text)
+                for wrong, correct in corrections:
+                    if len(wrong) >= 2 and len(correct) >= 2:
+                        vocab_learner.learn_from_correction(wrong, correct)
+                        learned_count += 1
+
+        if learned_count > 0:
+            self.logger.info(f"📚 從用戶修正中學習了 {learned_count} 個詞彙")
+
+    def _find_word_corrections(self, original: str, edited: str) -> list:
+        """
+        找出原始文本和編輯文本之間的詞彙差異
+
+        Returns:
+            [(wrong, correct), ...] 格式的修正列表
+        """
+        corrections = []
+
+        # 簡單策略：如果長度相近且只有少量差異，認為是修正
+        if abs(len(original) - len(edited)) <= 4:
+            # 使用差異比對找出修改的詞彙
+            import difflib
+            matcher = difflib.SequenceMatcher(None, original, edited)
+
+            for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+                if tag == 'replace':
+                    wrong_word = original[i1:i2]
+                    correct_word = edited[j1:j2]
+                    # 只記錄有意義的修正（2-10 字符）
+                    if 2 <= len(wrong_word) <= 10 and 2 <= len(correct_word) <= 10:
+                        corrections.append((wrong_word, correct_word))
+
+        return corrections
 
     def _show_license_dialog(self):
         """Show license activation dialog."""

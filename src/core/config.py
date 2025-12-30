@@ -56,6 +56,9 @@ class AppConfig:
 
     # LLM 智能斷句優化 (新增)
     enable_llm_sentence_optimization: bool = True  # 使用 LLM 檢測並合併語意不完整的句子
+
+    # 終極轉錄模式
+    enable_ultimate_transcription: bool = False  # 啟用終極模式（音頻增強 + 三階段轉錄 + 詞彙學習）
     
     # Subtitle Language Style
     subtitle_language_style: str = "colloquial"  # "formal" (書面語/正式中文) or "colloquial" (口語/粵語口語字)

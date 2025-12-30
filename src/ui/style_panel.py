@@ -62,8 +62,54 @@ class StyleControlPanel(QWidget):
         lang_layout.addWidget(self._create_radio_row(self.rb_written))
         lang_container_layout.addLayout(lang_layout)
         content_layout.addWidget(self.lang_card)
-        
-        # 2. English Handling
+
+        # 2. Ultimate Mode Section (放在語言風格下方)
+        self.ultimate_card, ultimate_container_layout = self._create_card("終極模式", "zap")
+        ultimate_layout = QVBoxLayout()
+        ultimate_layout.setSpacing(8)
+
+        # Status label
+        self.ultimate_status_label = QLabel("標準模式")
+        self.ultimate_status_label.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        ultimate_layout.addWidget(self.ultimate_status_label)
+
+        # Settings button
+        self.ultimate_settings_btn = QPushButton("⚡ 設定終極模式")
+        self.ultimate_settings_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #7c3aed, stop:1 #a855f7);
+                color: white;
+                font-weight: bold;
+                border: none;
+                border-radius: 6px;
+                padding: 10px 16px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #6d28d9, stop:1 #9333ea);
+            }
+            QPushButton:pressed {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #5b21b6, stop:1 #7e22ce);
+            }
+        """)
+        self.ultimate_settings_btn.clicked.connect(self._show_ultimate_settings)
+        ultimate_layout.addWidget(self.ultimate_settings_btn)
+
+        # Help text
+        help_label = QLabel("極致準確度，處理時間約 2-3 倍")
+        help_label.setStyleSheet("color: #64748b; font-size: 10px; font-style: italic;")
+        ultimate_layout.addWidget(help_label)
+
+        ultimate_container_layout.addLayout(ultimate_layout)
+        content_layout.addWidget(self.ultimate_card)
+
+        # Update ultimate mode status
+        self._update_ultimate_status()
+
+        # 3. English Handling (原 #2)
         self.eng_card, eng_container_layout = self._create_card("英文處理", "globe")
         eng_layout = QVBoxLayout()
         
@@ -85,7 +131,7 @@ class StyleControlPanel(QWidget):
         eng_container_layout.addLayout(eng_layout)
         content_layout.addWidget(self.eng_card)
         
-        # 3. Number Format
+        # 4. Number Format (原 #3)
         self.num_card, num_container_layout = self._create_card("數字格式", "hash")
         num_layout = QVBoxLayout()
         self.num_bg = QButtonGroup(self)
@@ -102,7 +148,7 @@ class StyleControlPanel(QWidget):
         num_container_layout.addLayout(num_layout)
         content_layout.addWidget(self.num_card)
         
-        # 4. Punctuation Toggle
+        # 5. Punctuation Toggle (原 #4)
         self.punct_card, punct_container_layout = self._create_card("標點符號", "text")
         punct_layout = QHBoxLayout()
         punct_layout.setSpacing(8)
@@ -118,14 +164,11 @@ class StyleControlPanel(QWidget):
         punct_layout.addWidget(self.btn_punct_remove)
         punct_container_layout.addLayout(punct_layout)
         content_layout.addWidget(self.punct_card)
-        
-        # 5. Profanity Filter (Optional, keeping simple for now)
-        # ...
-        
+
         # Initialize downloader (keeping for compatibility)
         from utils.model_downloader import ModelDownloader
         self.downloader = ModelDownloader()
-        
+
         # Add stretch
         content_layout.addStretch()
         
@@ -315,3 +358,429 @@ class StyleControlPanel(QWidget):
         self.ai_progress_bar.setStyleSheet("color: #ef4444; font-size: 11px;")
         self.ai_download_btn.setEnabled(True)
         self.ai_download_btn.setText("重試下載")
+
+    def _update_ultimate_status(self):
+        """Update ultimate mode status display."""
+        from core.config import Config
+        config = Config()
+        enabled = config.get("enable_ultimate_transcription", False)
+
+        if enabled:
+            self.ultimate_status_label.setText("⚡ 終極模式已啟用")
+            self.ultimate_status_label.setStyleSheet("color: #a855f7; font-size: 12px; font-weight: bold;")
+        else:
+            self.ultimate_status_label.setText("標準模式")
+            self.ultimate_status_label.setStyleSheet("color: #94a3b8; font-size: 12px;")
+
+    def _show_ultimate_settings(self):
+        """Show ultimate mode settings dialog."""
+        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                                       QCheckBox, QPushButton, QGroupBox, QFrame,
+                                       QTableWidget, QTableWidgetItem, QHeaderView,
+                                       QAbstractItemView, QMessageBox)
+        from PySide6.QtCore import Qt
+        from core.config import Config
+        from core.hardware_detector import get_hardware_detector
+
+        # Check VRAM first
+        detector = get_hardware_detector()
+        current_vram = detector.get_vram_gb()
+        min_required_vram = 12.0  # Minimum for ultimate mode
+
+        if current_vram < min_required_vram:
+            # Show blocking warning dialog
+            self._show_vram_warning(current_vram, min_required_vram)
+            return  # Don't show settings dialog
+
+        config = Config()
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("終極模式設定")
+        dialog.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        dialog.setMinimumSize(500, 480)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #1e293b;
+                border: 1px solid #475569;
+                border-radius: 12px;
+            }
+            QLabel {
+                color: #e2e8f0;
+            }
+            QCheckBox {
+                color: #e2e8f0;
+                spacing: 8px;
+            }
+            QCheckBox::indicator {
+                width: 18px;
+                height: 18px;
+                border-radius: 4px;
+                border: 2px solid #475569;
+                background: #0f172a;
+            }
+            QCheckBox::indicator:checked {
+                background: #a855f7;
+                border-color: #a855f7;
+            }
+            QGroupBox {
+                font-weight: bold;
+                color: #94a3b8;
+                border: 1px solid #475569;
+                border-radius: 8px;
+                margin-top: 12px;
+                padding-top: 16px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 12px;
+                padding: 0 6px;
+            }
+        """)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(16)
+
+        # Title
+        title_layout = QHBoxLayout()
+        title = QLabel("⚡ 終極模式設定")
+        title.setStyleSheet("font-size: 20px; font-weight: bold; color: #a855f7;")
+        title_layout.addWidget(title)
+        title_layout.addStretch()
+
+        # Close button
+        close_x = QPushButton("✕")
+        close_x.setFixedSize(28, 28)
+        close_x.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                color: #94a3b8;
+                font-size: 16px;
+                border: none;
+            }
+            QPushButton:hover {
+                color: #ef4444;
+            }
+        """)
+        close_x.clicked.connect(dialog.reject)
+        title_layout.addWidget(close_x)
+        layout.addLayout(title_layout)
+
+        # Description
+        desc = QLabel("終極模式整合多項高級優化策略，顯著提升轉錄準確度。")
+        desc.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        desc.setWordWrap(True)
+        layout.addWidget(desc)
+
+        # === Main Settings ===
+        main_group = QGroupBox("轉錄設定")
+        main_layout = QVBoxLayout(main_group)
+        main_layout.setSpacing(12)
+
+        # Ultimate mode toggle
+        ultimate_check = QCheckBox("啟用終極轉錄模式")
+        ultimate_check.setChecked(config.get("enable_ultimate_transcription", False))
+        ultimate_check.setStyleSheet("font-size: 14px; font-weight: bold;")
+        main_layout.addWidget(ultimate_check)
+
+        # Features list
+        features_label = QLabel(
+            "  • 音頻預處理（降噪 + 人聲增強）\n"
+            "  • VAD 智能預分割\n"
+            "  • 三階段高精度轉錄\n"
+            "  • 錨點驗證系統\n"
+            "  • 用戶詞彙個人化"
+        )
+        features_label.setStyleSheet("color: #64748b; font-size: 11px; margin-left: 20px;")
+        main_layout.addWidget(features_label)
+
+        # LLM optimization
+        llm_check = QCheckBox("啟用 AI 斷句優化")
+        llm_check.setChecked(config.get("enable_llm_sentence_optimization", True))
+        main_layout.addWidget(llm_check)
+
+        layout.addWidget(main_group)
+
+        # === Vocabulary Section ===
+        vocab_group = QGroupBox("📚 用戶詞彙庫")
+        vocab_layout = QVBoxLayout(vocab_group)
+        vocab_layout.setSpacing(10)
+
+        # Stats
+        try:
+            from utils.vocabulary_learner import get_vocabulary_learner
+            vocab_learner = get_vocabulary_learner()
+            stats = vocab_learner.get_statistics()
+            stats_text = f"已學習 {stats['total_words']} 個詞彙，累計校正 {stats['total_corrections']} 次"
+        except Exception:
+            stats_text = "詞彙庫尚未初始化"
+            vocab_learner = None
+
+        stats_label = QLabel(stats_text)
+        stats_label.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        vocab_layout.addWidget(stats_label)
+
+        # Buttons
+        vocab_btn_layout = QHBoxLayout()
+
+        view_btn = QPushButton("查看詞彙")
+        view_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #334155;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #475569;
+            }
+        """)
+        view_btn.clicked.connect(lambda: self._show_vocabulary_list(dialog, vocab_learner))
+        vocab_btn_layout.addWidget(view_btn)
+
+        clear_btn = QPushButton("清空詞彙")
+        clear_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #7f1d1d;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 6px;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #991b1b;
+            }
+        """)
+        clear_btn.clicked.connect(lambda: self._clear_vocabulary_with_confirm(stats_label, vocab_learner))
+        vocab_btn_layout.addWidget(clear_btn)
+
+        vocab_btn_layout.addStretch()
+        vocab_layout.addLayout(vocab_btn_layout)
+
+        # Help
+        vocab_help = QLabel("💡 當你手動修改字幕並導出時，系統會自動學習你的修正")
+        vocab_help.setStyleSheet("color: #64748b; font-size: 10px; font-style: italic;")
+        vocab_help.setWordWrap(True)
+        vocab_layout.addWidget(vocab_help)
+
+        layout.addWidget(vocab_group)
+
+        layout.addStretch()
+
+        # === Buttons ===
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        cancel_btn = QPushButton("取消")
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #475569;
+                color: white;
+                padding: 10px 24px;
+                border-radius: 6px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #64748b;
+            }
+        """)
+        cancel_btn.clicked.connect(dialog.reject)
+        btn_layout.addWidget(cancel_btn)
+
+        save_btn = QPushButton("儲存設定")
+        save_btn.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #7c3aed, stop:1 #a855f7);
+                color: white;
+                font-weight: bold;
+                padding: 10px 24px;
+                border-radius: 6px;
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #6d28d9, stop:1 #9333ea);
+            }
+        """)
+        save_btn.clicked.connect(dialog.accept)
+        btn_layout.addWidget(save_btn)
+
+        layout.addLayout(btn_layout)
+
+        if dialog.exec():
+            # Save settings
+            config.set("enable_ultimate_transcription", ultimate_check.isChecked())
+            config.set("enable_llm_sentence_optimization", llm_check.isChecked())
+            self._update_ultimate_status()
+
+    def _show_vram_warning(self, current_vram: float, required_vram: float):
+        """Show VRAM insufficient warning dialog."""
+        from PySide6.QtWidgets import QMessageBox
+        
+        msg = QMessageBox(self)
+        msg.setWindowTitle("VRAM 不足")
+        msg.setIcon(QMessageBox.Warning)
+        msg.setText("⚠️ 無法啟用終極模式")
+        msg.setInformativeText(
+            f"終極模式需要至少 {required_vram:.0f} GB VRAM。\n\n"
+            f"檢測到您的系統只有 {current_vram:.1f} GB VRAM，"
+            f"不足以執行終極模式的高級功能。\n\n"
+            f"建議：\n"
+            f"• 使用標準模式進行轉錄\n"
+            f"• 或升級至配備更大 VRAM 的 GPU"
+        )
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.setStyleSheet("""
+            QMessageBox {
+                background-color: #1e293b;
+            }
+            QMessageBox QLabel {
+                color: #f1f5f9;
+            }
+            QPushButton {
+                background-color: #475569;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 6px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #64748b;
+            }
+        """)
+        msg.exec()
+
+    def _show_vocabulary_list(self, parent_dialog, vocab_learner):
+        """Show vocabulary list in a sub-dialog."""
+        from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+                                       QPushButton, QTableWidget, QTableWidgetItem,
+                                       QHeaderView, QAbstractItemView)
+        from PySide6.QtCore import Qt
+
+        if not vocab_learner:
+            return
+
+        dialog = QDialog(parent_dialog)
+        dialog.setWindowTitle("用戶詞彙庫")
+        dialog.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        dialog.setMinimumSize(550, 400)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #0f172a;
+                border: 1px solid #475569;
+                border-radius: 10px;
+            }
+        """)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(12)
+
+        # Title
+        title = QLabel("📚 用戶詞彙庫")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #22d3ee;")
+        layout.addWidget(title)
+
+        # Table
+        table = QTableWidget()
+        table.setColumnCount(4)
+        table.setHorizontalHeaderLabels(["錯誤文字", "正確文字", "使用次數", "類別"])
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        table.setStyleSheet("""
+            QTableWidget {
+                background-color: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                color: #e2e8f0;
+                gridline-color: #334155;
+            }
+            QTableWidget::item {
+                padding: 6px;
+            }
+            QTableWidget::item:selected {
+                background-color: #7c3aed;
+            }
+            QHeaderView::section {
+                background-color: #334155;
+                color: #e2e8f0;
+                padding: 8px;
+                border: none;
+                font-weight: bold;
+            }
+        """)
+
+        vocabulary = vocab_learner.vocabulary
+        table.setRowCount(len(vocabulary))
+        for row, (word, entry) in enumerate(vocabulary.items()):
+            wrong_variants = ", ".join(entry.wrong_variants) if entry.wrong_variants else ""
+            table.setItem(row, 0, QTableWidgetItem(wrong_variants))
+            table.setItem(row, 1, QTableWidgetItem(entry.correct_word))
+            table.setItem(row, 2, QTableWidgetItem(str(entry.frequency)))
+            table.setItem(row, 3, QTableWidgetItem(entry.category))
+
+        layout.addWidget(table)
+
+        # Close button
+        close_btn = QPushButton("關閉")
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3b82f6;
+                color: white;
+                padding: 8px 20px;
+                border-radius: 6px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2563eb;
+            }
+        """)
+        close_btn.clicked.connect(dialog.accept)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(close_btn)
+        layout.addLayout(btn_layout)
+
+        dialog.exec()
+
+    def _clear_vocabulary_with_confirm(self, stats_label, vocab_learner):
+        """Clear vocabulary with confirmation."""
+        from PySide6.QtWidgets import QMessageBox
+
+        if not vocab_learner:
+            return
+
+        msg = QMessageBox(self)
+        msg.setWindowTitle("確認清空")
+        msg.setIcon(QMessageBox.Warning)
+        msg.setText("確定要清空所有已學習的詞彙嗎？")
+        msg.setInformativeText("此操作無法撤銷。")
+        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        msg.setDefaultButton(QMessageBox.No)
+        msg.setStyleSheet("""
+            QMessageBox {
+                background-color: #1e293b;
+                color: #f1f5f9;
+            }
+            QMessageBox QLabel {
+                color: #f1f5f9;
+            }
+            QPushButton {
+                background-color: #475569;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 6px;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #64748b;
+            }
+        """)
+
+        if msg.exec() == QMessageBox.Yes:
+            vocab_learner.clear_all()
+            stats_label.setText("已學習 0 個詞彙，累計校正 0 次")

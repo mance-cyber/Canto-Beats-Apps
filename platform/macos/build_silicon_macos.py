@@ -84,7 +84,7 @@ def build_app():
     print("开始构建 Canto-beats.app (Silicon macOS)")
     print("=" * 60)
     
-    project_dir = Path(__file__).parent
+    project_dir = Path(__file__).parent.parent.parent  # Go up to project root
     main_script = str(project_dir / "main.py")
     
     # 获取 venv 的 site-packages 路径
